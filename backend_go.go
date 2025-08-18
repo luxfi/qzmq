@@ -1,3 +1,4 @@
+//go:build !czmq
 // +build !czmq
 
 package qzmq
@@ -13,16 +14,16 @@ import (
 
 // goSocket implements Socket using pure Go ZeroMQ
 type goSocket struct {
-	socket      *zmq.Socket
-	socketType  SocketType
-	opts        Options
-	connection  *connection
-	metrics     *SocketMetrics
-	mu          sync.RWMutex
-	
+	socket     *zmq.Socket
+	socketType SocketType
+	opts       Options
+	connection *connection
+	metrics    *SocketMetrics
+	mu         sync.RWMutex
+
 	// Message tracking
-	sendSeq     uint64
-	recvSeq     uint64
+	sendSeq uint64
+	recvSeq uint64
 }
 
 // initGoBackend initializes the Go ZeroMQ backend
@@ -42,29 +43,29 @@ func newGoSocket(socketType SocketType, opts Options) (Socket, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Create ZeroMQ socket
 	socket, err := zmq.NewSocket(zmqType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create socket: %w", err)
 	}
-	
+
 	// Configure socket options
 	if err := configureGoSocket(socket, opts); err != nil {
 		socket.Close()
 		return nil, err
 	}
-	
+
 	gs := &goSocket{
 		socket:     socket,
 		socketType: socketType,
 		opts:       opts,
 		metrics:    &SocketMetrics{},
 	}
-	
+
 	// Initialize QZMQ connection
 	gs.connection = newConnection(opts, false)
-	
+
 	return gs, nil
 }
 
@@ -72,20 +73,20 @@ func newGoSocket(socketType SocketType, opts Options) (Socket, error) {
 func (s *goSocket) Bind(endpoint string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	// Set server mode for connection
 	s.connection.isServer = true
-	
+
 	// Bind the underlying socket
 	if err := s.socket.Bind(endpoint); err != nil {
 		return fmt.Errorf("bind failed: %w", err)
 	}
-	
+
 	// Start accepting handshakes if not PUB/PUSH
 	if s.socketType != PUB && s.socketType != PUSH {
 		go s.acceptHandshakes()
 	}
-	
+
 	return nil
 }
 
@@ -93,15 +94,15 @@ func (s *goSocket) Bind(endpoint string) error {
 func (s *goSocket) Connect(endpoint string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	// Set client mode
 	s.connection.isServer = false
-	
+
 	// Connect the underlying socket
 	if err := s.socket.Connect(endpoint); err != nil {
 		return fmt.Errorf("connect failed: %w", err)
 	}
-	
+
 	// Perform QZMQ handshake if not SUB/PULL
 	if s.socketType != SUB && s.socketType != PULL {
 		if err := s.performHandshake(); err != nil {
@@ -109,7 +110,7 @@ func (s *goSocket) Connect(endpoint string) error {
 			return fmt.Errorf("QZMQ handshake failed: %w", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -117,7 +118,7 @@ func (s *goSocket) Connect(endpoint string) error {
 func (s *goSocket) Send(data []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	// Check if encryption is needed
 	if s.needsEncryption() {
 		// Check key rotation
@@ -126,19 +127,19 @@ func (s *goSocket) Send(data []byte) error {
 				return err
 			}
 		}
-		
+
 		// Encrypt the message
 		encrypted, err := s.encrypt(data)
 		if err != nil {
 			return fmt.Errorf("encryption failed: %w", err)
 		}
 		data = encrypted
-		
+
 		// Update metrics
 		s.metrics.MessagesSent++
 		s.metrics.BytesSent += uint64(len(data))
 	}
-	
+
 	// Send via ZeroMQ
 	_, err := s.socket.SendBytes(data, 0)
 	return err
@@ -148,7 +149,7 @@ func (s *goSocket) Send(data []byte) error {
 func (s *goSocket) SendMultipart(parts [][]byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	// Encrypt each part if needed
 	if s.needsEncryption() {
 		encryptedParts := make([][]byte, len(parts))
@@ -161,7 +162,7 @@ func (s *goSocket) SendMultipart(parts [][]byte) error {
 		}
 		parts = encryptedParts
 	}
-	
+
 	// Convert to ZeroMQ format
 	_, err := s.socket.SendMessage(parts)
 	return err
@@ -174,10 +175,10 @@ func (s *goSocket) Recv() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	// Decrypt if needed
 	if s.needsEncryption() {
 		decrypted, err := s.decrypt(data)
@@ -186,12 +187,12 @@ func (s *goSocket) Recv() ([]byte, error) {
 			return nil, fmt.Errorf("decryption failed: %w", err)
 		}
 		data = decrypted
-		
+
 		// Update metrics
 		s.metrics.MessagesReceived++
 		s.metrics.BytesReceived += uint64(len(data))
 	}
-	
+
 	return data, nil
 }
 
@@ -202,10 +203,10 @@ func (s *goSocket) RecvMultipart() ([][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	// Decrypt each part if needed
 	if s.needsEncryption() {
 		decryptedParts := make([][]byte, len(parts))
@@ -219,7 +220,7 @@ func (s *goSocket) RecvMultipart() ([][]byte, error) {
 		}
 		parts = decryptedParts
 	}
-	
+
 	return parts, nil
 }
 
@@ -243,7 +244,7 @@ func (s *goSocket) Unsubscribe(filter string) error {
 func (s *goSocket) SetOption(name string, value interface{}) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	// Handle QZMQ-specific options
 	switch name {
 	case "qzmq.rotate_keys":
@@ -254,7 +255,7 @@ func (s *goSocket) SetOption(name string, value interface{}) error {
 		}
 		return nil
 	}
-	
+
 	// Pass through to ZeroMQ
 	return setZmqOption(s.socket, name, value)
 }
@@ -263,7 +264,7 @@ func (s *goSocket) SetOption(name string, value interface{}) error {
 func (s *goSocket) GetOption(name string) (interface{}, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	// Handle QZMQ-specific options
 	switch name {
 	case "qzmq.encrypted":
@@ -273,7 +274,7 @@ func (s *goSocket) GetOption(name string) (interface{}, error) {
 	case "qzmq.metrics":
 		return s.metrics, nil
 	}
-	
+
 	// Pass through to ZeroMQ
 	return getZmqOption(s.socket, name)
 }
@@ -282,13 +283,13 @@ func (s *goSocket) GetOption(name string) (interface{}, error) {
 func (s *goSocket) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	// Send close notification if connected
 	if s.connection.state == stateEstablished {
 		closeMsg := &closeMessage{Reason: "normal_close"}
 		s.sendRaw(closeMsg.marshal())
 	}
-	
+
 	return s.socket.Close()
 }
 
@@ -296,7 +297,7 @@ func (s *goSocket) Close() error {
 func (s *goSocket) GetMetrics() *SocketMetrics {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	metricsCopy := *s.metrics
 	return &metricsCopy
 }
@@ -321,7 +322,7 @@ func (s *goSocket) performHandshake() error {
 	if _, err := s.socket.SendBytes(hello, 0); err != nil {
 		return err
 	}
-	
+
 	// Receive ServerHello
 	serverHello, err := s.socket.RecvBytes(0)
 	if err != nil {
@@ -330,7 +331,7 @@ func (s *goSocket) performHandshake() error {
 	if err := s.connection.processServerHello(serverHello); err != nil {
 		return err
 	}
-	
+
 	// Send ClientKey
 	clientKey, err := s.connection.clientKey()
 	if err != nil {
@@ -339,7 +340,7 @@ func (s *goSocket) performHandshake() error {
 	if _, err := s.socket.SendBytes(clientKey, 0); err != nil {
 		return err
 	}
-	
+
 	// Receive Finished
 	finished, err := s.socket.RecvBytes(0)
 	if err != nil {
@@ -348,7 +349,7 @@ func (s *goSocket) performHandshake() error {
 	if err := s.connection.processFinished(finished); err != nil {
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -359,20 +360,20 @@ func (s *goSocket) acceptHandshakes() {
 
 func (s *goSocket) encrypt(data []byte) ([]byte, error) {
 	s.sendSeq++
-	
+
 	// Create nonce
 	nonce := make([]byte, 12)
 	binary.BigEndian.PutUint32(nonce[0:4], s.connection.streamID)
 	binary.BigEndian.PutUint64(nonce[4:12], s.sendSeq)
-	
+
 	// Create AAD
 	aad := make([]byte, 16)
 	binary.BigEndian.PutUint64(aad[0:8], uint64(time.Now().Unix()))
 	binary.BigEndian.PutUint64(aad[8:16], s.sendSeq)
-	
+
 	// Encrypt
 	ciphertext := s.connection.clientAEAD.Seal(nil, nonce, data, aad)
-	
+
 	// Create frame
 	frame := &messageFrame{
 		version:    protocolVersion,
@@ -381,7 +382,7 @@ func (s *goSocket) encrypt(data []byte) ([]byte, error) {
 		payload:    ciphertext,
 		aad:        aad,
 	}
-	
+
 	return frame.marshal(), nil
 }
 
@@ -391,24 +392,24 @@ func (s *goSocket) decrypt(data []byte) ([]byte, error) {
 	if err := frame.unmarshal(data); err != nil {
 		return nil, err
 	}
-	
+
 	// Check sequence number
 	if frame.sequenceNo <= s.recvSeq {
 		return nil, fmt.Errorf("replay detected")
 	}
 	s.recvSeq = frame.sequenceNo
-	
+
 	// Create nonce
 	nonce := make([]byte, 12)
 	binary.BigEndian.PutUint32(nonce[0:4], frame.streamID)
 	binary.BigEndian.PutUint64(nonce[4:12], frame.sequenceNo)
-	
+
 	// Decrypt
 	plaintext, err := s.connection.serverAEAD.Open(nil, nonce, frame.payload, frame.aad)
 	if err != nil {
 		return nil, fmt.Errorf("authentication failed: %w", err)
 	}
-	
+
 	return plaintext, nil
 }
 
@@ -418,26 +419,26 @@ func (s *goSocket) rotateKeys() error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Send key update message
 	updateMsg := &keyUpdateMessage{
 		timestamp: time.Now().Unix(),
 		newKeyID:  s.metrics.KeyUpdates + 1,
 	}
-	
+
 	encrypted, err := s.encrypt(updateMsg.marshal())
 	if err != nil {
 		return err
 	}
-	
+
 	if _, err := s.socket.SendBytes(encrypted, 0); err != nil {
 		return err
 	}
-	
+
 	// Apply new keys
 	s.connection.keys = newKeys
 	s.metrics.KeyUpdates++
-	
+
 	return nil
 }
 
@@ -481,14 +482,14 @@ func convertSocketType(st SocketType) (zmq.Type, error) {
 
 func configureGoSocket(socket *zmq.Socket, opts Options) error {
 	// Set common options
-	socket.SetLinger(int(opts.Timeouts.Linger / time.Millisecond))
+	socket.SetLinger(time.Duration(opts.Timeouts.Linger.Milliseconds()))
 	socket.SetSndhwm(10000)
 	socket.SetRcvhwm(10000)
-	
+
 	// Enable TCP keepalive
 	socket.SetTcpKeepalive(1)
 	socket.SetTcpKeepaliveIdle(120)
-	
+
 	return nil
 }
 
