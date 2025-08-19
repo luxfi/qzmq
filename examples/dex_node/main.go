@@ -183,7 +183,7 @@ func integrateWithLuxNode() {
 	// 3. DEX operations are quantum-secure end-to-end
 	// 4. Key management integrates with existing Lux key store
 	
-	fmt.Println(`
+	fmt.Print(`
 Integration Points:
 ===================
 

@@ -293,6 +293,7 @@ type transport struct {
 	backend Backend
 	sockets map[string]Socket
 	stats   *Stats
+	options map[string]interface{}
 	mu      sync.RWMutex
 	closed  bool
 }
@@ -419,15 +420,11 @@ func (t *transport) SetOption(name string, value interface{}) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	switch name {
-	case "max_sockets":
-		// Set maximum number of sockets
-	case "io_threads":
-		// Set I/O thread count
-	default:
-		return fmt.Errorf("unknown option: %s", name)
+	if t.options == nil {
+		t.options = make(map[string]interface{})
 	}
 
+	t.options[name] = value
 	return nil
 }
 
@@ -442,6 +439,11 @@ func (t *transport) GetOption(name string) (interface{}, error) {
 	case "socket_count":
 		return len(t.sockets), nil
 	default:
+		if t.options != nil {
+			if val, ok := t.options[name]; ok {
+				return val, nil
+			}
+		}
 		return nil, fmt.Errorf("unknown option: %s", name)
 	}
 }

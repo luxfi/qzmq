@@ -1,5 +1,5 @@
-//go:build !stub && !czmq && cgo && pebbe
-// +build !stub,!czmq,cgo,pebbe
+//go:build !stub && !czmq && cgo
+// +build !stub,!czmq,cgo
 
 package qzmq
 
