@@ -1,5 +1,5 @@
-//go:build !czmq && !stub
-// +build !czmq,!stub
+//go:build !czmq && cgo
+// +build !czmq,cgo
 
 package qzmq
 
@@ -13,12 +13,12 @@ import (
 
 // zmqSocket implements Socket using pebbe/zmq4
 type zmqSocket struct {
-	socket      *zmq.Socket
-	socketType  SocketType
-	opts        Options
-	metrics     *SocketMetrics
-	mu          sync.RWMutex
-	closed      bool
+	socket     *zmq.Socket
+	socketType SocketType
+	opts       Options
+	metrics    *SocketMetrics
+	mu         sync.RWMutex
+	closed     bool
 }
 
 // Initialize the Go backend (no-op for zmq4)
@@ -85,75 +85,75 @@ func newGoSocket(socketType SocketType, opts Options) (Socket, error) {
 func (s *zmqSocket) Bind(endpoint string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.closed {
 		return ErrNotConnected
 	}
-	
+
 	return s.socket.Bind(endpoint)
 }
 
 func (s *zmqSocket) Connect(endpoint string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.closed {
 		return ErrNotConnected
 	}
-	
+
 	return s.socket.Connect(endpoint)
 }
 
 func (s *zmqSocket) Send(data []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.closed {
 		return ErrNotConnected
 	}
-	
+
 	// Skip encryption for now (testing mode)
 	// TODO: Implement proper encryption once handshake is working
-	
+
 	// Send the message
 	_, err := s.socket.SendBytes(data, 0)
 	if err != nil {
 		return err
 	}
-	
+
 	// Update metrics
 	s.metrics.MessagesSent++
 	s.metrics.BytesSent += uint64(len(data))
-	
+
 	return nil
 }
 
 func (s *zmqSocket) SendMultipart(parts [][]byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.closed {
 		return ErrNotConnected
 	}
-	
+
 	// Skip encryption for now (testing mode)
 	// TODO: Implement proper encryption once handshake is working
-	
+
 	// Send all parts except the last with SNDMORE flag
 	for i, part := range parts {
 		var flag zmq.Flag
 		if i < len(parts)-1 {
 			flag = zmq.SNDMORE
 		}
-		
+
 		_, err := s.socket.SendBytes(part, flag)
 		if err != nil {
 			return err
 		}
-		
+
 		s.metrics.BytesSent += uint64(len(part))
 	}
-	
+
 	s.metrics.MessagesSent++
 	return nil
 }
@@ -161,49 +161,49 @@ func (s *zmqSocket) SendMultipart(parts [][]byte) error {
 func (s *zmqSocket) Recv() ([]byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.closed {
 		return nil, ErrNotConnected
 	}
-	
+
 	// Receive the message
 	data, err := s.socket.RecvBytes(0)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Skip decryption for now (testing mode)
 	// TODO: Implement proper decryption once handshake is working
-	
+
 	// Update metrics
 	s.metrics.MessagesReceived++
 	s.metrics.BytesReceived += uint64(len(data))
-	
+
 	return data, nil
 }
 
 func (s *zmqSocket) RecvMultipart() ([][]byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.closed {
 		return nil, ErrNotConnected
 	}
-	
+
 	parts := [][]byte{}
-	
+
 	for {
 		data, err := s.socket.RecvBytes(0)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		// Skip decryption for now (testing mode)
 		// TODO: Implement proper decryption once handshake is working
-		
+
 		parts = append(parts, data)
 		s.metrics.BytesReceived += uint64(len(data))
-		
+
 		// Check if there are more parts
 		more, err := s.socket.GetRcvmore()
 		if err != nil {
@@ -213,7 +213,7 @@ func (s *zmqSocket) RecvMultipart() ([][]byte, error) {
 			break
 		}
 	}
-	
+
 	s.metrics.MessagesReceived++
 	return parts, nil
 }
@@ -221,41 +221,41 @@ func (s *zmqSocket) RecvMultipart() ([][]byte, error) {
 func (s *zmqSocket) Subscribe(filter string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.closed {
 		return ErrNotConnected
 	}
-	
+
 	if s.socketType != SUB && s.socketType != XSUB {
 		return fmt.Errorf("subscribe only valid for SUB/XSUB sockets")
 	}
-	
+
 	return s.socket.SetSubscribe(filter)
 }
 
 func (s *zmqSocket) Unsubscribe(filter string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.closed {
 		return ErrNotConnected
 	}
-	
+
 	if s.socketType != SUB && s.socketType != XSUB {
 		return fmt.Errorf("unsubscribe only valid for SUB/XSUB sockets")
 	}
-	
+
 	return s.socket.SetUnsubscribe(filter)
 }
 
 func (s *zmqSocket) SetOption(name string, value interface{}) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.closed {
 		return ErrNotConnected
 	}
-	
+
 	// Map common options
 	switch name {
 	case "sndhwm":
@@ -275,18 +275,18 @@ func (s *zmqSocket) SetOption(name string, value interface{}) error {
 			return s.socket.SetIdentity(v)
 		}
 	}
-	
+
 	return fmt.Errorf("unsupported option: %s", name)
 }
 
 func (s *zmqSocket) GetOption(name string) (interface{}, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	if s.closed {
 		return nil, ErrNotConnected
 	}
-	
+
 	switch name {
 	case "type":
 		return s.socketType, nil
@@ -309,11 +309,11 @@ func (s *zmqSocket) GetOption(name string) (interface{}, error) {
 func (s *zmqSocket) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.closed {
 		return nil
 	}
-	
+
 	s.closed = true
 	return s.socket.Close()
 }
@@ -321,7 +321,7 @@ func (s *zmqSocket) Close() error {
 func (s *zmqSocket) GetMetrics() *SocketMetrics {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	// Return a copy to avoid race conditions
 	metrics := *s.metrics
 	return &metrics

@@ -56,3 +56,8 @@ examples/*/*/main
 tmp/
 temp/
 *.tmp
+
+LLM.md
+AGENTS.md
+CLAUDE.md
+GEMINI.md

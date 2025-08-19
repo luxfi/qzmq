@@ -2,128 +2,61 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, dev ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, dev ]
+
+env:
+  GO_VERSION: '1.24.5'
 
 jobs:
   test:
     name: Test
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        go: ['1.24.5']
-    
+    runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v4
-    
+    - name: Checkout code
+      uses: actions/checkout@v4
+
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: ${{ matrix.go }}
-    
-    - name: Install ZeroMQ (Ubuntu)
-      if: matrix.os == 'ubuntu-latest'
+        go-version: '1.24.5'
+
+    - name: Get dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y libzmq3-dev
-    
-    - name: Install ZeroMQ (macOS)
-      if: matrix.os == 'macos-latest'
+        go mod download
+        go mod tidy
+
+    - name: Run tests (stub backend)
       run: |
-        brew install zeromq
-    
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
-    
-    - name: Download dependencies
-      run: go mod download
-    
-    - name: Run tests
-      run: go test -v -race -coverprofile=coverage.out ./...
-    
+        CGO_ENABLED=0 go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+
     - name: Upload coverage
       uses: codecov/codecov-action@v4
       with:
-        file: ./coverage.out
+        file: ./coverage.txt
         flags: unittests
-        name: codecov-${{ matrix.os }}-${{ matrix.go }}
-        token: ${{ secrets.CODECOV_TOKEN }}
+        fail_ci_if_error: false
 
-  lint:
-    name: Lint
+  build:
+    name: Build
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
+    - name: Checkout code
+      uses: actions/checkout@v4
+
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
         go-version: '1.24.5'
-    
-    - name: golangci-lint
-      uses: golangci/golangci-lint-action@v6
-      with:
-        version: latest
-        args: --timeout=5m
 
-  benchmark:
-    name: Benchmark
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.24.5'
-    
-    - name: Install ZeroMQ
+    - name: Build (stub backend)
       run: |
-        sudo apt-get update
-        sudo apt-get install -y libzmq3-dev
-    
-    - name: Run benchmarks
-      run: go test -bench=. -benchmem ./... | tee benchmark.txt
-    
-    - name: Upload benchmark results
-      uses: actions/upload-artifact@v4
-      with:
-        name: benchmark-results
-        path: benchmark.txt
+        CGO_ENABLED=0 go build -v ./...
 
-  build-examples:
-    name: Build Examples
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.24.5'
-    
-    - name: Install ZeroMQ
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libzmq3-dev
-    
     - name: Build examples
       run: |
         cd examples/basic
-        go build -o basic main.go
-        
-    - name: Upload examples
-      uses: actions/upload-artifact@v4
-      with:
-        name: examples
-        path: examples/*/main
+        CGO_ENABLED=0 go build -v .

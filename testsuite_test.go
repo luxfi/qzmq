@@ -19,7 +19,7 @@ func NewTestSuite(t *testing.T) *TestSuite {
 // TestAllPatterns tests all ZeroMQ socket patterns with QZMQ
 func TestAllPatterns(t *testing.T) {
 	suite := NewTestSuite(t)
-	
+
 	t.Run("REQ-REP", suite.TestReqRep)
 	t.Run("PUB-SUB", suite.TestPubSub)
 	t.Run("PUSH-PULL", suite.TestPushPull)
@@ -464,7 +464,7 @@ func TestSecurityModes(t *testing.T) {
 
 			suite, _ := client.GetOption("qzmq.suite")
 			if s, ok := suite.(Suite); ok {
-				t.Logf("%s mode - Suite: KEM=%s, Sign=%s, AEAD=%s", 
+				t.Logf("%s mode - Suite: KEM=%s, Sign=%s, AEAD=%s",
 					mode.name, s.KEM, s.Sign, s.AEAD)
 			}
 		})
@@ -537,7 +537,7 @@ func TestKeyRotation(t *testing.T) {
 	// Check metrics for key updates
 	metrics := client.GetMetrics()
 	t.Logf("Key updates: %d", metrics.KeyUpdates)
-	
+
 	// We should have at least one key rotation (after 5 messages)
 	if metrics.KeyUpdates < 1 {
 		t.Error("Expected at least one key rotation")
@@ -600,7 +600,7 @@ func TestConcurrentConnections(t *testing.T) {
 
 			for j := 0; j < numMessages; j++ {
 				msg := []byte("Client" + string(rune('0'+clientID)) + "-Msg" + string(rune('0'+j)))
-				
+
 				if err := client.Send(msg); err != nil {
 					t.Errorf("Client %d: Send error on message %d: %v", clientID, j, err)
 					continue

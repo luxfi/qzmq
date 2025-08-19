@@ -1,654 +1,443 @@
-//go:build stub
-// +build stub
+//go:build !czmq && !cgo
+// +build !czmq,!cgo
 
 package qzmq
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"time"
 )
 
-// Stub implementations when CZMQ is not available
+// Global router for coordinating socket communication
+var globalStubRouter = &stubRouter{
+	dealers:  make(map[string]*stubSocket),
+	routers:  make(map[string]*stubSocket),
+	reqrep:   make(map[string]chan []byte),
+	pubsub:   make(map[string][]chan []byte),
+	pushpull: make(map[string]chan []byte),
+	pairs:    make(map[string]*stubSocket),
+}
 
-// Global messaging infrastructure for stub backend
-var (
-	globalRouter    = newStubRouter()
-	globalPubSubBus = newPubSubBus()
-)
-
-// stubRouter simulates message routing between sockets
 type stubRouter struct {
-	mu          sync.RWMutex
-	bindings    map[string]*stubSocket
-	connections map[string][]*stubSocket
-}
-
-func newStubRouter() *stubRouter {
-	return &stubRouter{
-		bindings:    make(map[string]*stubSocket),
-		connections: make(map[string][]*stubSocket),
-	}
-}
-
-func (r *stubRouter) registerBinding(endpoint string, socket *stubSocket) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.bindings[endpoint] = socket
-	
-	// Connect any waiting connections to this binding
-	if conns, ok := r.connections[endpoint]; ok {
-		for _, conn := range conns {
-			// Route messages between connected sockets
-			if socket.socketType == PULL && conn.socketType == PUSH {
-				// Connect PUSH to PULL
-				go func(push, pull *stubSocket) {
-					for {
-						select {
-						case msg := <-push.outbound:
-							pull.inbound <- msg
-						case <-push.closed:
-							return
-						case <-pull.closed:
-							return
-						}
-					}
-				}(conn, socket)
-			} else if socket.socketType == REP && conn.socketType == REQ {
-				// Connect REQ to REP bidirectionally
-				go func(req, rep *stubSocket) {
-					for {
-						select {
-						case msg := <-req.outbound:
-							rep.inbound <- msg
-						case <-req.closed:
-							return
-						case <-rep.closed:
-							return
-						}
-					}
-				}(conn, socket)
-				// Route replies back
-				go func(rep, req *stubSocket) {
-					for {
-						select {
-						case reply := <-rep.outbound:
-							req.inbound <- reply
-						case <-rep.closed:
-							return
-						case <-req.closed:
-							return
-						}
-					}
-				}(socket, conn)
-			} else if socket.socketType == PAIR && conn.socketType == PAIR {
-				// Connect PAIR to PAIR bidirectionally
-				go func(p1, p2 *stubSocket) {
-					for {
-						select {
-						case msg := <-p1.outbound:
-							p2.inbound <- msg
-						case <-p1.closed:
-							return
-						case <-p2.closed:
-							return
-						}
-					}
-				}(conn, socket)
-				go func(p1, p2 *stubSocket) {
-					for {
-						select {
-						case msg := <-p2.outbound:
-							p1.inbound <- msg
-						case <-p1.closed:
-							return
-						case <-p2.closed:
-							return
-						}
-					}
-				}(socket, conn)
-			} else if socket.socketType == ROUTER && conn.socketType == DEALER {
-				// Connect DEALER to ROUTER
-				go func(dealer, router *stubSocket) {
-					for {
-						select {
-						case msg := <-dealer.outbound:
-							router.inbound <- msg
-						case <-dealer.closed:
-							return
-						case <-router.closed:
-							return
-						}
-					}
-				}(conn, socket)
-				// And route back
-				go func(router, dealer *stubSocket) {
-					for {
-						select {
-						case msg := <-router.outbound:
-							dealer.inbound <- msg
-						case <-router.closed:
-							return
-						case <-dealer.closed:
-							return
-						}
-					}
-				}(socket, conn)
-			}
-		}
-	}
-}
-
-func (r *stubRouter) registerConnection(endpoint string, socket *stubSocket) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.connections[endpoint] = append(r.connections[endpoint], socket)
-	
-	// If there's already a binding, connect to it
-	if bound, ok := r.bindings[endpoint]; ok {
-		// Route messages between connected sockets
-		if bound.socketType == PULL && socket.socketType == PUSH {
-			// Connect PUSH to PULL
-			go func(push, pull *stubSocket) {
-				for {
-					select {
-					case msg := <-push.outbound:
-						pull.inbound <- msg
-					case <-push.closed:
-						return
-					case <-pull.closed:
-						return
-					}
-				}
-			}(socket, bound)
-		} else if bound.socketType == REP && socket.socketType == REQ {
-			// Connect REQ to REP bidirectionally
-			go func(req, rep *stubSocket) {
-				for {
-					select {
-					case msg := <-req.outbound:
-						rep.inbound <- msg
-					case <-req.closed:
-						return
-					case <-rep.closed:
-						return
-					}
-				}
-			}(socket, bound)
-			// Route replies back
-			go func(rep, req *stubSocket) {
-				for {
-					select {
-					case reply := <-rep.outbound:
-						req.inbound <- reply
-					case <-rep.closed:
-						return
-					case <-req.closed:
-						return
-					}
-				}
-			}(bound, socket)
-		} else if bound.socketType == PAIR && socket.socketType == PAIR {
-			// Connect PAIR to PAIR bidirectionally
-			go func(p1, p2 *stubSocket) {
-				for {
-					select {
-					case msg := <-p1.outbound:
-						p2.inbound <- msg
-					case <-p1.closed:
-						return
-					case <-p2.closed:
-						return
-					}
-				}
-			}(socket, bound)
-			go func(p1, p2 *stubSocket) {
-				for {
-					select {
-					case msg := <-p2.outbound:
-						p1.inbound <- msg
-					case <-p1.closed:
-						return
-					case <-p2.closed:
-						return
-					}
-				}
-			}(bound, socket)
-		} else if bound.socketType == ROUTER && socket.socketType == DEALER {
-			// Connect DEALER to ROUTER
-			go func(dealer, router *stubSocket) {
-				for {
-					select {
-					case msg := <-dealer.outbound:
-						router.inbound <- msg
-					case <-dealer.closed:
-						return
-					case <-router.closed:
-						return
-					}
-				}
-			}(socket, bound)
-			// And route back
-			go func(router, dealer *stubSocket) {
-				for {
-					select {
-					case msg := <-router.outbound:
-						dealer.inbound <- msg
-					case <-router.closed:
-						return
-					case <-dealer.closed:
-						return
-					}
-				}
-			}(bound, socket)
-		}
-	}
-}
-
-func (r *stubRouter) unregister(socket *stubSocket) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	
-	// Remove from bindings
-	for endpoint, bound := range r.bindings {
-		if bound == socket {
-			delete(r.bindings, endpoint)
-		}
-	}
-	
-	// Remove from connections
-	for endpoint, conns := range r.connections {
-		newConns := []*stubSocket{}
-		for _, conn := range conns {
-			if conn != socket {
-				newConns = append(newConns, conn)
-			}
-		}
-		if len(newConns) > 0 {
-			r.connections[endpoint] = newConns
-		} else {
-			delete(r.connections, endpoint)
-		}
-	}
-}
-
-// pubSubBus simulates pub-sub message distribution
-type pubSubBus struct {
-	mu          sync.RWMutex
-	subscribers map[*stubSocket][]string
-	channels    map[*stubSocket]chan []byte
-}
-
-func newPubSubBus() *pubSubBus {
-	return &pubSubBus{
-		subscribers: make(map[*stubSocket][]string),
-		channels:    make(map[*stubSocket]chan []byte),
-	}
-}
-
-func (b *pubSubBus) subscribe(socket *stubSocket, filter string) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	
-	b.subscribers[socket] = append(b.subscribers[socket], filter)
-	
-	// Create a channel for this subscriber if needed
-	if _, ok := b.channels[socket]; !ok {
-		b.channels[socket] = make(chan []byte, 100)
-	}
-}
-
-func (b *pubSubBus) unsubscribe(socket *stubSocket, filter string) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	
-	if filters, ok := b.subscribers[socket]; ok {
-		newFilters := []string{}
-		for _, f := range filters {
-			if f != filter {
-				newFilters = append(newFilters, f)
-			}
-		}
-		if len(newFilters) > 0 {
-			b.subscribers[socket] = newFilters
-		} else {
-			delete(b.subscribers, socket)
-			// Close and remove channel
-			if ch, ok := b.channels[socket]; ok {
-				close(ch)
-				delete(b.channels, socket)
-			}
-		}
-	}
-}
-
-func (b *pubSubBus) publish(data []byte) {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-	
-	// Send to all subscribers
-	for socket, filters := range b.subscribers {
-		// Check if message matches any filter
-		match := false
-		for _, filter := range filters {
-			if filter == "" || strings.HasPrefix(string(data), filter) {
-				match = true
-				break
-			}
-		}
-		if match {
-			if ch, ok := b.channels[socket]; ok {
-				select {
-				case ch <- data:
-				default:
-					// Non-blocking send
-				}
-			}
-		}
-	}
-}
-
-func (b *pubSubBus) getChannel(socket *stubSocket) chan []byte {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	
-	if ch, ok := b.channels[socket]; ok {
-		return ch
-	}
-	
-	// Create a new channel if needed
-	ch := make(chan []byte, 100)
-	b.channels[socket] = ch
-	return ch
-}
-
-func (b *pubSubBus) unregister(socket *stubSocket) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	
-	delete(b.subscribers, socket)
-	if ch, ok := b.channels[socket]; ok {
-		close(ch)
-		delete(b.channels, socket)
-	}
+	mu       sync.RWMutex
+	dealers  map[string]*stubSocket
+	routers  map[string]*stubSocket
+	reqrep   map[string]chan []byte
+	pubsub   map[string][]chan []byte
+	pushpull map[string]chan []byte
+	pairs    map[string]*stubSocket
 }
 
 func initGoBackend() error {
-	// Pure Go backend doesn't need initialization
 	return nil
 }
 
 func newGoSocket(socketType SocketType, opts Options) (Socket, error) {
-	// Return a functional stub implementation
 	return &stubSocket{
-		socketType: socketType,
-		opts:       opts,
-		metrics:    NewSocketMetrics(),
-		inbound:    make(chan []byte, 100),
-		outbound:   make(chan []byte, 100),
-		multipart:  make(chan [][]byte, 100),
-		closed:     make(chan struct{}),
-		bindings:   make(map[string]bool),
+		socketType:  socketType,
+		opts:        opts,
+		metrics:     NewSocketMetrics(),
+		inbound:     make(chan []byte, 100),
+		outbound:    make(chan []byte, 100),
+		multipart:   make(chan [][]byte, 100),
+		closed:      make(chan struct{}),
+		bindings:    make(map[string]bool),
 		connections: make(map[string]bool),
+		identity:    fmt.Sprintf("socket-%d", time.Now().UnixNano()),
 	}, nil
 }
 
 func initCZMQBackend() error {
-	// CZMQ backend is not available when building without CZMQ
 	return nil
 }
 
 func newCZMQSocket(socketType SocketType, opts Options) (Socket, error) {
-	// Fall back to stub implementation when CZMQ is not available
 	return newGoSocket(socketType, opts)
 }
 
-// stubSocket is a functional stub implementation for testing
+// stubSocket implements Socket for testing
 type stubSocket struct {
-	socketType  SocketType
-	opts        Options
-	metrics     *SocketMetrics
-	mu          sync.RWMutex
-	
-	// Message channels for testing
-	inbound     chan []byte
-	outbound    chan []byte
-	multipart   chan [][]byte
-	closed      chan struct{}
-	
-	// Connection tracking
+	socketType SocketType
+	opts       Options
+	metrics    *SocketMetrics
+	mu         sync.RWMutex
+
+	inbound   chan []byte
+	outbound  chan []byte
+	multipart chan [][]byte
+	closed    chan struct{}
+
 	bindings    map[string]bool
 	connections map[string]bool
-	
-	// Subscription filters for SUB sockets
 	filters     []string
+	identity    string
 }
 
 func (s *stubSocket) Bind(endpoint string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	s.bindings[endpoint] = true
-	
+
 	// Register with global router
-	globalRouter.registerBinding(endpoint, s)
-	
+	globalStubRouter.mu.Lock()
+	defer globalStubRouter.mu.Unlock()
+
+	switch s.socketType {
+	case REP:
+		if globalStubRouter.reqrep[endpoint] == nil {
+			globalStubRouter.reqrep[endpoint] = make(chan []byte, 100)
+		}
+		go s.repServer(endpoint)
+
+	case ROUTER:
+		globalStubRouter.routers[endpoint] = s
+		go s.routerServer(endpoint)
+
+	case PULL:
+		if globalStubRouter.pushpull[endpoint] == nil {
+			globalStubRouter.pushpull[endpoint] = make(chan []byte, 100)
+		}
+		go s.pullServer(endpoint)
+
+	case PUB, XPUB:
+		// PUB doesn't need registration
+
+	case PAIR:
+		globalStubRouter.pairs[endpoint] = s
+	}
+
 	return nil
 }
 
 func (s *stubSocket) Connect(endpoint string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	s.connections[endpoint] = true
-	
+
 	// Register with global router
-	globalRouter.registerConnection(endpoint, s)
-	
+	globalStubRouter.mu.Lock()
+	defer globalStubRouter.mu.Unlock()
+
+	switch s.socketType {
+	case REQ:
+		if globalStubRouter.reqrep[endpoint] == nil {
+			globalStubRouter.reqrep[endpoint] = make(chan []byte, 100)
+		}
+
+	case DEALER:
+		globalStubRouter.dealers[s.identity] = s
+
+	case PUSH:
+		if globalStubRouter.pushpull[endpoint] == nil {
+			globalStubRouter.pushpull[endpoint] = make(chan []byte, 100)
+		}
+
+	case SUB, XSUB:
+		ch := make(chan []byte, 100)
+		globalStubRouter.pubsub[endpoint] = append(globalStubRouter.pubsub[endpoint], ch)
+		go s.subServer(ch)
+
+	case PAIR:
+		// Wait for bound socket
+		go func() {
+			for i := 0; i < 50; i++ {
+				time.Sleep(10 * time.Millisecond)
+				globalStubRouter.mu.RLock()
+				peer := globalStubRouter.pairs[endpoint]
+				globalStubRouter.mu.RUnlock()
+				if peer != nil {
+					// Connect the pairs
+					go s.pairConnect(peer)
+					return
+				}
+			}
+		}()
+	}
+
 	return nil
+}
+
+// Server functions for different patterns
+func (s *stubSocket) repServer(endpoint string) {
+	ch := globalStubRouter.reqrep[endpoint]
+	for {
+		select {
+		case msg := <-ch:
+			s.inbound <- msg
+			// Wait for reply
+			select {
+			case reply := <-s.outbound:
+				ch <- reply
+			case <-s.closed:
+				return
+			}
+		case <-s.closed:
+			return
+		}
+	}
+}
+
+func (s *stubSocket) routerServer(endpoint string) {
+	for {
+		select {
+		case <-s.multipart:
+			// Router received multipart to echo
+			// This should happen when router calls RecvMultipart which gets from DEALER
+			// and then SendMultipart which should send back to DEALER
+
+		case <-s.closed:
+			return
+		}
+	}
+}
+
+func (s *stubSocket) pullServer(endpoint string) {
+	ch := globalStubRouter.pushpull[endpoint]
+	for {
+		select {
+		case msg := <-ch:
+			s.inbound <- msg
+		case <-s.closed:
+			return
+		}
+	}
+}
+
+func (s *stubSocket) subServer(ch chan []byte) {
+	for {
+		select {
+		case msg := <-ch:
+			if s.matchesFilter(msg) {
+				s.inbound <- msg
+			}
+		case <-s.closed:
+			return
+		}
+	}
+}
+
+func (s *stubSocket) pairConnect(peer *stubSocket) {
+	// Create bidirectional connection
+	for {
+		select {
+		case msg := <-s.outbound:
+			peer.inbound <- msg
+		case msg := <-peer.outbound:
+			s.inbound <- msg
+		case <-s.closed:
+			return
+		case <-peer.closed:
+			return
+		}
+	}
+}
+
+func (s *stubSocket) matchesFilter(msg []byte) bool {
+	if len(s.filters) == 0 {
+		return true
+	}
+
+	msgStr := string(msg)
+	for _, filter := range s.filters {
+		if filter == "" || strings.HasPrefix(msgStr, filter) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *stubSocket) Send(data []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	select {
 	case <-s.closed:
 		return ErrNotConnected
 	default:
 	}
-	
+
 	s.metrics.MessagesSent++
 	s.metrics.BytesSent += uint64(len(data))
-	
-	// Handle based on socket type
+
 	switch s.socketType {
 	case REQ:
-		// For REQ, store the message and wait for reply
-		s.outbound <- data
-		return nil
+		// Send request and wait for reply
+		for endpoint := range s.connections {
+			if ch := globalStubRouter.reqrep[endpoint]; ch != nil {
+				ch <- data
+				return nil
+			}
+		}
+
 	case REP:
-		// For REP, this is a reply - send it back
+		// Reply goes through outbound channel, handled by repServer
 		s.outbound <- data
 		return nil
+
 	case PUB, XPUB:
-		// For PUB, broadcast to all subscribers via global bus
-		go globalPubSubBus.publish(data)
-		s.outbound <- data // Keep for backward compat
+		// Broadcast to all subscribers
+		globalStubRouter.mu.RLock()
+		defer globalStubRouter.mu.RUnlock()
+		for endpoint := range s.bindings {
+			for _, ch := range globalStubRouter.pubsub[endpoint] {
+				select {
+				case ch <- data:
+				default:
+				}
+			}
+		}
 		return nil
+
 	case PUSH:
-		// For PUSH, send to puller
-		s.outbound <- data
+		// Send to pull socket
+		for endpoint := range s.connections {
+			if ch := globalStubRouter.pushpull[endpoint]; ch != nil {
+				ch <- data
+				return nil
+			}
+		}
+
+	case DEALER:
+		// DEALER sends to ROUTER
+		globalStubRouter.mu.RLock()
+		router := findConnectedRouter(s)
+		globalStubRouter.mu.RUnlock()
+
+		if router != nil {
+			// Send as multipart [identity, message]
+			parts := [][]byte{[]byte(s.identity), data}
+			select {
+			case router.multipart <- parts:
+			case <-time.After(10 * time.Millisecond):
+			}
+		}
 		return nil
-	case DEALER, ROUTER:
-		// For DEALER/ROUTER, forward the message
-		s.outbound <- data
-		return nil
+
 	default:
 		s.outbound <- data
-		return nil
 	}
+
+	return nil
 }
 
 func (s *stubSocket) SendMultipart(parts [][]byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	select {
 	case <-s.closed:
 		return ErrNotConnected
 	default:
 	}
-	
+
 	s.metrics.MessagesSent++
 	for _, part := range parts {
 		s.metrics.BytesSent += uint64(len(part))
 	}
-	
-	// Store multipart message
+
+	if s.socketType == ROUTER && len(parts) >= 2 {
+		// ROUTER sending back to DEALER
+		identity := string(parts[0])
+		globalStubRouter.mu.RLock()
+		dealer := globalStubRouter.dealers[identity]
+		globalStubRouter.mu.RUnlock()
+
+		if dealer != nil {
+			// Send message back to dealer
+			dealer.inbound <- parts[1]
+		}
+		return nil
+	}
+
+	if s.socketType == DEALER {
+		// DEALER sends multipart to ROUTER
+		globalStubRouter.mu.RLock()
+		router := findConnectedRouter(s)
+		globalStubRouter.mu.RUnlock()
+
+		if router != nil {
+			// Add identity frame and send to router
+			identityParts := append([][]byte{[]byte(s.identity)}, parts...)
+			select {
+			case router.multipart <- identityParts:
+			case <-time.After(10 * time.Millisecond):
+			}
+		}
+		return nil
+	}
+
 	s.multipart <- parts
-	
 	return nil
 }
 
 func (s *stubSocket) Recv() ([]byte, error) {
-	// Handle based on socket type
 	switch s.socketType {
 	case REQ:
-		// For REQ, wait for the response from REP
+		// Wait for reply from REP
+		for endpoint := range s.connections {
+			if ch := globalStubRouter.reqrep[endpoint]; ch != nil {
+				select {
+				case reply := <-ch:
+					s.metrics.MessagesReceived++
+					s.metrics.BytesReceived += uint64(len(reply))
+					return reply, nil
+				case <-time.After(200 * time.Millisecond):
+					return nil, ErrTimeout
+				case <-s.closed:
+					return nil, ErrNotConnected
+				}
+			}
+		}
+
+	case DEALER:
+		// Receive echoed message
 		select {
-		case reply := <-s.inbound:
-			// Received reply from REP
+		case msg := <-s.inbound:
 			s.metrics.MessagesReceived++
-			s.metrics.BytesReceived += uint64(len(reply))
-			return reply, nil
+			s.metrics.BytesReceived += uint64(len(msg))
+			return msg, nil
 		case <-time.After(200 * time.Millisecond):
-			// Timeout waiting for reply
 			return nil, ErrTimeout
 		case <-s.closed:
 			return nil, ErrNotConnected
 		}
-		
-	case REP:
-		// For REP, receive incoming request
-		select {
-		case msg := <-s.inbound:
-			s.metrics.MessagesReceived++
-			s.metrics.BytesReceived += uint64(len(msg))
-			return msg, nil
-		case <-time.After(500 * time.Millisecond):
-			// Timeout waiting for request
-			return nil, ErrTimeout
-		case <-s.closed:
-			return nil, ErrNotConnected
-		}
-		
-	case SUB, XSUB:
-		// For SUB, receive published messages from global bus
-		ch := globalPubSubBus.getChannel(s)
-		select {
-		case msg := <-ch:
-			s.metrics.MessagesReceived++
-			s.metrics.BytesReceived += uint64(len(msg))
-			return msg, nil
-		case msg := <-s.inbound:
-			// Fallback to inbound channel
-			s.metrics.MessagesReceived++
-			s.metrics.BytesReceived += uint64(len(msg))
-			return msg, nil
-		case <-time.After(100 * time.Millisecond):
-			return nil, ErrTimeout
-		case <-s.closed:
-			return nil, ErrNotConnected
-		}
-		
-	case PULL:
-		// For PULL, receive pushed messages
-		select {
-		case msg := <-s.inbound:
-			s.metrics.MessagesReceived++
-			s.metrics.BytesReceived += uint64(len(msg))
-			return msg, nil
-		case msg := <-s.outbound:
-			// For testing, return what was pushed
-			s.metrics.MessagesReceived++
-			s.metrics.BytesReceived += uint64(len(msg))
-			return msg, nil
-		case <-time.After(100 * time.Millisecond):
-			return nil, nil
-		case <-s.closed:
-			return nil, ErrNotConnected
-		}
-		
-	case DEALER, ROUTER:
-		// For DEALER/ROUTER, receive messages
-		select {
-		case msg := <-s.inbound:
-			s.metrics.MessagesReceived++
-			s.metrics.BytesReceived += uint64(len(msg))
-			return msg, nil
-		case msg := <-s.outbound:
-			// Echo back for testing
-			s.metrics.MessagesReceived++
-			s.metrics.BytesReceived += uint64(len(msg))
-			return msg, nil
-		case <-time.After(100 * time.Millisecond):
-			return nil, nil
-		case <-s.closed:
-			return nil, ErrNotConnected
-		}
-		
-	case PAIR:
-		// For PAIR, receive from inbound (messages from peer)
-		select {
-		case msg := <-s.inbound:
-			s.metrics.MessagesReceived++
-			s.metrics.BytesReceived += uint64(len(msg))
-			return msg, nil
-		case <-time.After(100 * time.Millisecond):
-			return nil, ErrTimeout
-		case <-s.closed:
-			return nil, ErrNotConnected
-		}
-		
+
 	default:
-		// Default behavior - return what was sent
 		select {
-		case msg := <-s.outbound:
+		case msg := <-s.inbound:
 			s.metrics.MessagesReceived++
 			s.metrics.BytesReceived += uint64(len(msg))
 			return msg, nil
-		case <-time.After(100 * time.Millisecond):
-			return []byte("test"), nil
+		case <-time.After(200 * time.Millisecond):
+			return nil, ErrTimeout
 		case <-s.closed:
 			return nil, ErrNotConnected
 		}
 	}
+
+	return nil, ErrTimeout
 }
 
 func (s *stubSocket) RecvMultipart() ([][]byte, error) {
-	// Special handling for ROUTER sockets
 	if s.socketType == ROUTER {
-		// Wait for a message
 		select {
-		case msg := <-s.outbound:
+		case parts := <-s.multipart:
 			s.metrics.MessagesReceived++
-			s.metrics.BytesReceived += uint64(len(msg))
-			// For ROUTER, return identity frame + message
-			identity := []byte("dealer-" + string(msg[0]))
-			return [][]byte{identity, msg}, nil
-		case msg := <-s.inbound:
-			s.metrics.MessagesReceived++
-			s.metrics.BytesReceived += uint64(len(msg))
-			// For ROUTER, return identity frame + message
-			identity := []byte("dealer-" + string(msg[0]))
-			return [][]byte{identity, msg}, nil
-		case <-time.After(100 * time.Millisecond):
+			for _, part := range parts {
+				s.metrics.BytesReceived += uint64(len(part))
+			}
+			return parts, nil
+		case <-time.After(200 * time.Millisecond):
 			return nil, ErrTimeout
 		case <-s.closed:
 			return nil, ErrNotConnected
 		}
 	}
-	
-	// Regular multipart handling
+
 	select {
 	case parts := <-s.multipart:
 		s.metrics.MessagesReceived++
@@ -656,8 +445,7 @@ func (s *stubSocket) RecvMultipart() ([][]byte, error) {
 			s.metrics.BytesReceived += uint64(len(part))
 		}
 		return parts, nil
-	case <-time.After(100 * time.Millisecond):
-		// For testing, return what was sent via SendMultipart
+	case <-time.After(200 * time.Millisecond):
 		return [][]byte{[]byte("test")}, nil
 	case <-s.closed:
 		return nil, ErrNotConnected
@@ -668,17 +456,13 @@ func (s *stubSocket) Subscribe(filter string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.filters = append(s.filters, filter)
-	
-	// Register with global pubsub bus
-	globalPubSubBus.subscribe(s, filter)
-	
 	return nil
 }
 
 func (s *stubSocket) Unsubscribe(filter string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	newFilters := []string{}
 	for _, f := range s.filters {
 		if f != filter {
@@ -686,15 +470,10 @@ func (s *stubSocket) Unsubscribe(filter string) error {
 		}
 	}
 	s.filters = newFilters
-	
-	// Unregister from global pubsub bus
-	globalPubSubBus.unsubscribe(s, filter)
-	
 	return nil
 }
 
 func (s *stubSocket) SetOption(name string, value interface{}) error {
-	// Store options if needed
 	return nil
 }
 
@@ -702,8 +481,10 @@ func (s *stubSocket) GetOption(name string) (interface{}, error) {
 	switch name {
 	case "type":
 		return s.socketType, nil
-	case "qzmq.suite":
+	case "suite", "qzmq.suite":
 		return s.opts.Suite, nil
+	case "qzmq.encrypted":
+		return s.opts.Suite.KEM != 0 || s.opts.Suite.Sign != 0, nil
 	default:
 		return nil, nil
 	}
@@ -712,17 +493,24 @@ func (s *stubSocket) GetOption(name string) (interface{}, error) {
 func (s *stubSocket) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	select {
 	case <-s.closed:
-		// Already closed
 	default:
 		close(s.closed)
-		// Unregister from global systems
-		globalRouter.unregister(s)
-		globalPubSubBus.unregister(s)
+
+		// Unregister from global router
+		globalStubRouter.mu.Lock()
+		defer globalStubRouter.mu.Unlock()
+
+		// Clean up registrations
+		delete(globalStubRouter.dealers, s.identity)
+		for endpoint := range s.bindings {
+			delete(globalStubRouter.routers, endpoint)
+			delete(globalStubRouter.pairs, endpoint)
+		}
 	}
-	
+
 	return nil
 }
 
@@ -730,3 +518,12 @@ func (s *stubSocket) GetMetrics() *SocketMetrics {
 	return s.metrics
 }
 
+// Helper function to find connected router
+func findConnectedRouter(dealer *stubSocket) *stubSocket {
+	for endpoint := range dealer.connections {
+		if router := globalStubRouter.routers[endpoint]; router != nil {
+			return router
+		}
+	}
+	return nil
+}
