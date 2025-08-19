@@ -1,6 +1,6 @@
 module github.com/luxfi/qzmq
 
-go 1.21
+go 1.24.5
 
 require (
 	github.com/pebbe/zmq4 v1.2.10
