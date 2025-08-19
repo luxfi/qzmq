@@ -99,7 +99,7 @@ type OrderType uint8
 
 const (
 	Limit OrderType = iota
-	Market
+	MarketOrder
 	Stop
 	StopLimit
 )
@@ -313,7 +313,7 @@ func (dex *XChainDEXTransport) matchOrder(orderData []byte) *Trade {
 		for _, ask := range market.Asks {
 			if order.Price >= ask.Price {
 				// Found a match
-				for id, o := range dex.orders {
+				for _, o := range dex.orders {
 					if o.Market == order.Market && o.Side == Sell && o.Price == ask.Price {
 						matchedOrder = o
 						break
@@ -327,7 +327,7 @@ func (dex *XChainDEXTransport) matchOrder(orderData []byte) *Trade {
 		for _, bid := range market.Bids {
 			if order.Price <= bid.Price {
 				// Found a match
-				for id, o := range dex.orders {
+				for _, o := range dex.orders {
 					if o.Market == order.Market && o.Side == Buy && o.Price == bid.Price {
 						matchedOrder = o
 						break
@@ -386,7 +386,7 @@ func (dex *XChainDEXTransport) submitToXChain(trade *Trade) (string, error) {
 func (dex *XChainDEXTransport) runSettlementService() {
 	for {
 		// Handle settlement queries
-		req, err := dex.settlement.Recv()
+		_, err := dex.settlement.Recv()
 		if err != nil {
 			continue
 		}
@@ -404,7 +404,7 @@ func (dex *XChainDEXTransport) runMarketDataFeed() {
 	
 	for range ticker.C {
 		// Publish market data updates
-		for symbol, market := range dex.markets {
+		for symbol, _ := range dex.markets {
 			data := &MarketData{
 				Symbol:    symbol,
 				BestBid:   dex.getBestBid(symbol),
