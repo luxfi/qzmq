@@ -1,5 +1,5 @@
-//go:build !czmq && !cgo
-// +build !czmq,!cgo
+//go:build !stub
+// +build !stub
 
 package qzmq
 
@@ -11,8 +11,10 @@ import (
 	zmq "github.com/luxfi/zmq/v4"
 )
 
-// pureSocket implements Socket using pure Go luxfi/zmq
-type pureSocket struct {
+// zmqSocket implements Socket using luxfi/zmq
+// This automatically uses CZMQ when CGO=1 and czmq tag is set,
+// otherwise falls back to pure Go implementation
+type zmqSocket struct {
 	socket     zmq.Socket
 	socketType SocketType
 	opts       Options
@@ -23,18 +25,18 @@ type pureSocket struct {
 	cancel     context.CancelFunc
 }
 
-// Initialize the pure Go backend
+// Initialize the backend
 func initGoBackend() error {
-	// Pure Go backend doesn't need initialization
+	// luxfi/zmq handles backend selection automatically
 	return nil
 }
 
-// Create a new socket using pure Go ZMQ
+// Create a new socket using luxfi/zmq
 func newGoSocket(socketType SocketType, opts Options) (Socket, error) {
 	// Create context for the socket
 	ctx, cancel := context.WithCancel(context.Background())
 	
-	// Create the appropriate socket type
+	// Create the appropriate socket type using luxfi/zmq
 	var socket zmq.Socket
 	
 	switch socketType {
@@ -70,7 +72,7 @@ func newGoSocket(socketType SocketType, opts Options) (Socket, error) {
 		return nil, fmt.Errorf("failed to create socket")
 	}
 	
-	return &pureSocket{
+	return &zmqSocket{
 		socket:     socket,
 		socketType: socketType,
 		opts:       opts,
@@ -80,7 +82,7 @@ func newGoSocket(socketType SocketType, opts Options) (Socket, error) {
 	}, nil
 }
 
-func (s *pureSocket) Bind(endpoint string) error {
+func (s *zmqSocket) Bind(endpoint string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	
@@ -91,7 +93,7 @@ func (s *pureSocket) Bind(endpoint string) error {
 	return s.socket.Listen(endpoint)
 }
 
-func (s *pureSocket) Connect(endpoint string) error {
+func (s *zmqSocket) Connect(endpoint string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	
@@ -102,7 +104,7 @@ func (s *pureSocket) Connect(endpoint string) error {
 	return s.socket.Dial(endpoint)
 }
 
-func (s *pureSocket) Send(data []byte) error {
+func (s *zmqSocket) Send(data []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	
@@ -126,7 +128,7 @@ func (s *pureSocket) Send(data []byte) error {
 	return nil
 }
 
-func (s *pureSocket) SendMultipart(parts [][]byte) error {
+func (s *zmqSocket) SendMultipart(parts [][]byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	
@@ -152,7 +154,7 @@ func (s *pureSocket) SendMultipart(parts [][]byte) error {
 	return nil
 }
 
-func (s *pureSocket) Recv() ([]byte, error) {
+func (s *zmqSocket) Recv() ([]byte, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	
@@ -180,7 +182,7 @@ func (s *pureSocket) Recv() ([]byte, error) {
 	return data, nil
 }
 
-func (s *pureSocket) RecvMultipart() ([][]byte, error) {
+func (s *zmqSocket) RecvMultipart() ([][]byte, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	
@@ -206,7 +208,7 @@ func (s *pureSocket) RecvMultipart() ([][]byte, error) {
 	return frames, nil
 }
 
-func (s *pureSocket) Subscribe(filter string) error {
+func (s *zmqSocket) Subscribe(filter string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	
@@ -230,7 +232,7 @@ func (s *pureSocket) Subscribe(filter string) error {
 	return s.socket.SetOption(zmq.OptionSubscribe, filter)
 }
 
-func (s *pureSocket) Unsubscribe(filter string) error {
+func (s *zmqSocket) Unsubscribe(filter string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	
@@ -242,11 +244,19 @@ func (s *pureSocket) Unsubscribe(filter string) error {
 		return fmt.Errorf("unsubscribe only valid for SUB/XSUB sockets")
 	}
 	
-	// Use SetOption for unsubscribe
+	// For XSUB, send unsubscription as a message
+	if s.socketType == XSUB {
+		// XSUB unsubscription format: first byte 0 means unsubscribe, followed by topic
+		unsubMsg := append([]byte{0}, []byte(filter)...)
+		msg := zmq.NewMsg(unsubMsg)
+		return s.socket.Send(msg)
+	}
+	
+	// For SUB, use SetOption
 	return s.socket.SetOption(zmq.OptionUnsubscribe, filter)
 }
 
-func (s *pureSocket) SetOption(name string, value interface{}) error {
+func (s *zmqSocket) SetOption(name string, value interface{}) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	
@@ -256,30 +266,25 @@ func (s *pureSocket) SetOption(name string, value interface{}) error {
 	
 	// Map common options to ZMQ options
 	switch name {
-	case "sndhwm":
-		if v, ok := value.(int); ok {
-			return s.socket.SetOption(zmq.OptionHWM, v)
-		}
-	case "rcvhwm":
+	case "sndhwm", "rcvhwm":
 		if v, ok := value.(int); ok {
 			return s.socket.SetOption(zmq.OptionHWM, v)
 		}
 	case "linger":
-		if _, ok := value.(int); ok {
-			// luxfi/zmq doesn't have linger option, ignore for now
-			return nil
-		}
+		// luxfi/zmq doesn't have linger option, ignore for now
+		return nil
 	case "identity":
-		if _, ok := value.(string); ok {
-			// luxfi/zmq handles identity differently
-			return nil
-		}
+		// luxfi/zmq handles identity differently
+		return nil
+	case "rcvtimeo", "sndtimeo":
+		// Timeout options - ignore for now as luxfi/zmq handles timeouts differently
+		return nil
 	}
 	
 	return fmt.Errorf("unsupported option: %s", name)
 }
 
-func (s *pureSocket) GetOption(name string) (interface{}, error) {
+func (s *zmqSocket) GetOption(name string) (interface{}, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	
@@ -305,7 +310,7 @@ func (s *pureSocket) GetOption(name string) (interface{}, error) {
 	}
 }
 
-func (s *pureSocket) Close() error {
+func (s *zmqSocket) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	
@@ -318,22 +323,11 @@ func (s *pureSocket) Close() error {
 	return s.socket.Close()
 }
 
-func (s *pureSocket) GetMetrics() *SocketMetrics {
+func (s *zmqSocket) GetMetrics() *SocketMetrics {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	
 	// Return a copy to avoid race conditions
 	metrics := *s.metrics
 	return &metrics
-}
-
-// CZMQ backend stubs (not available in pure Go build)
-func initCZMQBackend() error {
-	// Not available in pure Go build
-	return fmt.Errorf("CZMQ backend not available in pure Go build")
-}
-
-func newCZMQSocket(socketType SocketType, opts Options) (Socket, error) {
-	// Fall back to pure Go implementation
-	return newGoSocket(socketType, opts)
 }

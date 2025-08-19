@@ -203,6 +203,79 @@ jobs:
         version: latest
         args: --timeout=5m
 
+  hardware-acceleration:
+    name: Hardware Acceleration Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+        
+    - name: Detect CUDA (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        echo "Checking for NVIDIA GPU..."
+        if command -v nvidia-smi &> /dev/null; then
+          nvidia-smi
+          echo "HAS_CUDA=1" >> $GITHUB_ENV
+        else
+          echo "No NVIDIA GPU detected"
+          echo "HAS_CUDA=0" >> $GITHUB_ENV
+        fi
+        
+    - name: Detect Metal (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        echo "Checking for Apple Silicon..."
+        if [[ $(uname -m) == "arm64" ]]; then
+          echo "Apple Silicon detected (MLX support available)"
+          echo "HAS_MLX=1" >> $GITHUB_ENV
+        else
+          echo "Intel Mac detected (no MLX support)"
+          echo "HAS_MLX=0" >> $GITHUB_ENV
+        fi
+        
+    - name: Checkout MLX integration
+      uses: actions/checkout@v4
+      with:
+        repository: luxfi/mlx
+        path: ../mlx
+        
+    - name: Run hardware-accelerated tests
+      run: |
+        echo "Hardware acceleration environment:"
+        echo "  HAS_CUDA: ${HAS_CUDA:-0}"
+        echo "  HAS_MLX: ${HAS_MLX:-0}"
+        
+        # Test with hardware acceleration if available
+        if [[ "${HAS_CUDA:-0}" == "1" || "${HAS_MLX:-0}" == "1" ]]; then
+          echo "Running hardware-accelerated tests..."
+          CGO_ENABLED=1 go test -v -tags "cuda mlx" -run TestHardwareAcceleration ./...
+        else
+          echo "No hardware acceleration available, skipping GPU tests"
+        fi
+        
+    - name: Benchmark with hardware acceleration
+      if: env.HAS_CUDA == '1' || env.HAS_MLX == '1'
+      run: |
+        echo "Running hardware-accelerated benchmarks..."
+        CGO_ENABLED=1 go test -bench=. -benchmem -tags "cuda mlx" -run=^$ ./... | tee bench-gpu.txt
+        
+    - name: Upload GPU benchmark results
+      if: env.HAS_CUDA == '1' || env.HAS_MLX == '1'
+      uses: actions/upload-artifact@v4
+      with:
+        name: gpu-benchmark-results-${{ matrix.os }}
+        path: bench-gpu.txt
+
   integration:
     name: Integration Tests
     runs-on: ubuntu-latest
@@ -238,6 +311,43 @@ jobs:
         echo "Testing concurrent connections..."
         CGO_ENABLED=0 go test -v -run TestConcurrentConnections ./...
         CGO_ENABLED=1 go test -v -run TestConcurrentConnections ./...
+        
+  mainnet-readiness:
+    name: Mainnet Readiness Tests
+    runs-on: ubuntu-latest
+    needs: [test-no-cgo, test-with-cgo, hardware-acceleration]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+        
+    - name: Install ZeroMQ
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libzmq3-dev pkg-config
+        
+    - name: Run mainnet readiness tests (CGO disabled)
+      env:
+        CGO_ENABLED: 0
+        LUX_ENV: production
+        LUX_CHAIN: X
+      run: |
+        echo "Running mainnet readiness tests with stub backend..."
+        go test -v -run TestMainnetReadiness -timeout 10m ./...
+        
+    - name: Run mainnet readiness tests (CGO enabled)
+      env:
+        CGO_ENABLED: 1
+        LUX_ENV: production
+        LUX_CHAIN: X
+      run: |
+        echo "Running mainnet readiness tests with ZMQ backend..."
+        go test -v -run TestMainnetReadiness -timeout 10m ./...
 
   coverage-report:
     name: Coverage Report
