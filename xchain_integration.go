@@ -588,6 +588,11 @@ func (dex *XChainDEXTransport) ConnectToPeers(peers []string) error {
 	return nil
 }
 
+// Stats returns transport statistics
+func (dex *XChainDEXTransport) Stats() *Stats {
+	return dex.transport.Stats()
+}
+
 // Close shuts down the DEX transport
 func (dex *XChainDEXTransport) Close() error {
 	dex.orderbook.Close()
