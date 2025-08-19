@@ -106,7 +106,7 @@ func (s *goSocket) Connect(endpoint string) error {
 	// Perform QZMQ handshake if not SUB/PULL
 	if s.socketType != SUB && s.socketType != PULL {
 		if err := s.performHandshake(); err != nil {
-			s.socket.Disconnect(endpoint)
+			_ = s.socket.Disconnect(endpoint)
 			return fmt.Errorf("QZMQ handshake failed: %w", err)
 		}
 	}
@@ -287,7 +287,7 @@ func (s *goSocket) Close() error {
 	// Send close notification if connected
 	if s.connection.state == stateEstablished {
 		closeMsg := &closeMessage{Reason: "normal_close"}
-		s.sendRaw(closeMsg.marshal())
+		_ = s.sendRaw(closeMsg.marshal())
 	}
 
 	return s.socket.Close()
@@ -524,13 +524,23 @@ func convertSocketType(st SocketType) (zmq.Type, error) {
 
 func configureGoSocket(socket *zmq.Socket, opts Options) error {
 	// Set common options
-	socket.SetLinger(time.Duration(opts.Timeouts.Linger.Milliseconds()))
-	socket.SetSndhwm(10000)
-	socket.SetRcvhwm(10000)
+	if err := socket.SetLinger(time.Duration(opts.Timeouts.Linger.Milliseconds())); err != nil {
+		return err
+	}
+	if err := socket.SetSndhwm(10000); err != nil {
+		return err
+	}
+	if err := socket.SetRcvhwm(10000); err != nil {
+		return err
+	}
 
 	// Enable TCP keepalive
-	socket.SetTcpKeepalive(1)
-	socket.SetTcpKeepaliveIdle(120)
+	if err := socket.SetTcpKeepalive(1); err != nil {
+		return err
+	}
+	if err := socket.SetTcpKeepaliveIdle(120); err != nil {
+		return err
+	}
 
 	return nil
 }

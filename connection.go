@@ -91,7 +91,9 @@ func (c *connection) clientHello() ([]byte, error) {
 
 	// Generate client random
 	c.clientRandom = make([]byte, 32)
-	rand.Read(c.clientRandom)
+	if _, err := rand.Read(c.clientRandom); err != nil {
+		return nil, err
+	}
 
 	// Initialize KEM
 	c.kem = c.getKEM()
@@ -190,7 +192,9 @@ func (c *connection) clientKey() ([]byte, error) {
 	if c.opts.Mode == ModeHybrid && c.localKEMSK != nil {
 		// In real implementation, perform ECDHE with server's X25519 key
 		ecdheSecret = make([]byte, 32)
-		rand.Read(ecdheSecret)
+		if _, err := rand.Read(ecdheSecret); err != nil {
+			return nil, err
+		}
 	}
 
 	// Derive keys
@@ -283,7 +287,9 @@ func (c *connection) updateKeys() (*keySet, error) {
 
 	// Generate new key material
 	newSecret := make([]byte, 32)
-	rand.Read(newSecret)
+	if _, err := rand.Read(newSecret); err != nil {
+		return nil, err
+	}
 
 	// Derive new keys
 	newKeys, err := deriveKeys(newSecret, c.sharedSecret, c.opts.Suite.Hash)
