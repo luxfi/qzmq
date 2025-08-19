@@ -37,7 +37,6 @@ func newGoSocket(socketType SocketType, opts Options) (Socket, error) {
 	
 	// Create the appropriate socket type
 	var socket zmq.Socket
-	var err error
 	
 	switch socketType {
 	case REQ:
@@ -137,9 +136,7 @@ func (s *pureSocket) SendMultipart(parts [][]byte) error {
 	}
 	
 	// Create multi-part message
-	frames := make([][]byte, len(parts))
-	copy(frames, parts)
-	msg := zmq.NewMsgFromFrames(frames)
+	msg := zmq.NewMsgFrom(parts...)
 	
 	// Send the message
 	err := s.socket.Send(msg)
@@ -171,7 +168,7 @@ func (s *pureSocket) Recv() ([]byte, error) {
 	}
 	
 	// Get the first frame
-	frames := msg.Frames()
+	frames := msg.Frames
 	if len(frames) == 0 {
 		return []byte{}, nil
 	}
@@ -200,7 +197,7 @@ func (s *pureSocket) RecvMultipart() ([][]byte, error) {
 	}
 	
 	// Get all frames
-	frames := msg.Frames()
+	frames := msg.Frames
 	
 	// Update metrics
 	s.metrics.MessagesReceived++

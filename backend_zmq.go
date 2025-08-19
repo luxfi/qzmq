@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	zmq "github.com/luxfi/zmq/v4"
+	zmq "github.com/pebbe/zmq4"
 )
 
 // zmqSocket implements Socket using pebbe/zmq4
