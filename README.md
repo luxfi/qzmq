@@ -9,7 +9,6 @@ QZMQ (QuantumZMQ) is a post-quantum secure transport layer for ZeroMQ that provi
 
 - 🔒 **Post-Quantum Security**: ML-KEM (Kyber) and ML-DSA (Dilithium) algorithms
 - 🚀 **High Performance**: Hardware-accelerated AES-GCM, zero-copy operations
-- 🔄 **Dual Backend Support**: Works with both pure Go (pebbe/zmq4) and C bindings (goczmq)
 - 🔑 **Hybrid Modes**: Combine classical (X25519) and post-quantum algorithms
 - ⚡ **0-RTT Resumption**: Fast reconnection with session tickets
 - 🛡️ **DoS Protection**: Stateless cookies and rate limiting
@@ -21,16 +20,9 @@ QZMQ (QuantumZMQ) is a post-quantum secure transport layer for ZeroMQ that provi
 go get github.com/luxfi/qzmq
 ```
 
-For C bindings support (optional):
-```bash
-# Install ZeroMQ and CZMQ
-brew install zeromq czmq  # macOS
-apt-get install libzmq3-dev libczmq-dev  # Ubuntu/Debian
-```
-
 ## Quick Start
 
-### Basic Usage (Pure Go)
+### Basic Usage
 
 ```go
 package main
@@ -76,7 +68,6 @@ func main() {
 ```go
 // Configure for maximum quantum security
 opts := qzmq.Options{
-    Backend: qzmq.BackendAuto,  // Auto-detect best backend
     Suite: qzmq.Suite{
         KEM:  qzmq.MLKEM1024,    // Strongest post-quantum KEM
         Sign: qzmq.MLDSA3,       // Strongest signatures
@@ -88,18 +79,6 @@ opts := qzmq.Options{
         MaxBytes:    1<<40,      // Rotate after 1TB
         MaxAge:      5*time.Minute,
     },
-}
-
-transport, err := qzmq.New(opts)
-```
-
-### Using with C ZeroMQ (goczmq)
-
-```go
-// Use C bindings for maximum performance
-opts := qzmq.Options{
-    Backend: qzmq.BackendCZMQ,  // Force C backend
-    // ... other options
 }
 
 transport, err := qzmq.New(opts)
@@ -144,8 +123,7 @@ Throughput:
 ```
 QZMQ Transport Layer
 ├── Backend Abstraction
-│   ├── Pure Go (pebbe/zmq4)
-│   └── C Bindings (goczmq)
+│   └── Go Backend (pebbe/zmq4)
 ├── Cryptographic Core
 │   ├── KEM (ML-KEM, X25519, Hybrid)
 │   ├── Signatures (ML-DSA, Ed25519)
@@ -182,9 +160,6 @@ go test -race ./...
 
 # Run benchmarks
 go test -bench=. ./...
-
-# Test with C backend
-QZMQ_BACKEND=czmq go test ./...
 ```
 
 ## Contributing
@@ -193,18 +168,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ## Migration from CurveZMQ
 
-QZMQ is designed as a drop-in replacement for CurveZMQ with quantum security:
-
-```go
-// Before (CurveZMQ)
-socket.SetCurveServerkey(serverKey)
-socket.SetCurvePublickey(publicKey)
-socket.SetCurveSecretkey(secretKey)
-
-// After (QZMQ)
-socket := transport.NewSocket(qzmq.REP)
-// Encryption is automatic!
-```
+QZMQ is designed as a drop-in replacement for CurveZMQ with quantum security.
 
 ## Roadmap
 

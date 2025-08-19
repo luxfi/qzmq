@@ -5,7 +5,6 @@ go 1.24.5
 toolchain go1.24.6
 
 require (
-	github.com/luxfi/czmq/v4 v4.2.0
 	github.com/pebbe/zmq4 v1.2.10
 	golang.org/x/crypto v0.40.0
 )

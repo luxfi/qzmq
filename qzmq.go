@@ -16,8 +16,6 @@ const (
 	BackendAuto Backend = iota
 	// BackendGo uses pure Go implementation (pebbe/zmq4)
 	BackendGo
-	// BackendCZMQ uses C bindings (goczmq)
-	BackendCZMQ
 )
 
 // Mode represents the security mode
@@ -309,7 +307,7 @@ func New(opts Options) (Transport, error) {
 	// Auto-detect backend if needed
 	backend := opts.Backend
 	if backend == BackendAuto {
-		backend = detectBestBackend()
+		backend = BackendGo
 	}
 
 	t := &transport{
@@ -401,8 +399,6 @@ func (t *transport) NewSocket(socketType SocketType) (Socket, error) {
 	switch t.backend {
 	case BackendGo:
 		socket, err = newGoSocket(socketType, t.opts)
-	case BackendCZMQ:
-		return nil, errors.New("CZMQ backend not available in this build")
 	default:
 		return nil, fmt.Errorf("unsupported backend: %v", t.backend)
 	}
@@ -485,8 +481,6 @@ func (t *transport) initBackend() error {
 	switch t.backend {
 	case BackendGo:
 		return initGoBackend()
-	case BackendCZMQ:
-		return errors.New("CZMQ backend not available in this build")
 	default:
 		return fmt.Errorf("unsupported backend: %v", t.backend)
 	}
@@ -522,23 +516,6 @@ func validateOptions(opts *Options) error {
 	}
 
 	return nil
-}
-
-// detectBestBackend auto-detects the best available backend
-func detectBestBackend() Backend {
-	// Try C backend first for performance
-	if hasCZMQ() {
-		return BackendCZMQ
-	}
-	// Fall back to pure Go
-	return BackendGo
-}
-
-// hasCZMQ checks if CZMQ is available
-func hasCZMQ() bool {
-	// This would check if czmq bindings are available
-	// For now, return false to use Go backend
-	return false
 }
 
 // Errors

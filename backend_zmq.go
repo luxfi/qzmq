@@ -190,31 +190,20 @@ func (s *zmqSocket) RecvMultipart() ([][]byte, error) {
 		return nil, ErrNotConnected
 	}
 
-	parts := [][]byte{}
-
-	for {
-		data, err := s.socket.RecvBytes(0)
-		if err != nil {
-			return nil, err
-		}
-
-		// Skip decryption for now (testing mode)
-		// TODO: Implement proper decryption once handshake is working
-
-		parts = append(parts, data)
-		s.metrics.BytesReceived += uint64(len(data))
-
-		// Check if there are more parts
-		more, err := s.socket.GetRcvmore()
-		if err != nil {
-			return nil, err
-		}
-		if !more {
-			break
-		}
+	parts, err := s.socket.RecvMessageBytes(0)
+	if err != nil {
+		return nil, err
 	}
 
+	// Skip decryption for now (testing mode)
+	// TODO: Implement proper decryption once handshake is working
+
+	// Update metrics
 	s.metrics.MessagesReceived++
+	for _, part := range parts {
+		s.metrics.BytesReceived += uint64(len(part))
+	}
+
 	return parts, nil
 }
 
