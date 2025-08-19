@@ -35,7 +35,7 @@ jobs:
         brew install zeromq
     
     - name: Cache Go modules
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/go/pkg/mod
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
@@ -49,11 +49,12 @@ jobs:
       run: go test -v -race -coverprofile=coverage.out ./...
     
     - name: Upload coverage
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         file: ./coverage.out
         flags: unittests
         name: codecov-${{ matrix.os }}-${{ matrix.go }}
+        token: ${{ secrets.CODECOV_TOKEN }}
 
   lint:
     name: Lint
@@ -68,7 +69,7 @@ jobs:
         go-version: '1.21'
     
     - name: golangci-lint
-      uses: golangci/golangci-lint-action@v3
+      uses: golangci/golangci-lint-action@v6
       with:
         version: latest
         args: --timeout=5m
@@ -94,7 +95,7 @@ jobs:
       run: go test -bench=. -benchmem ./... | tee benchmark.txt
     
     - name: Upload benchmark results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: benchmark-results
         path: benchmark.txt
@@ -122,7 +123,7 @@ jobs:
         go build -o basic main.go
         
     - name: Upload examples
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: examples
         path: examples/*/main
