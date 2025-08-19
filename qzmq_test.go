@@ -428,8 +428,8 @@ func TestSocketOptions(t *testing.T) {
 	}
 }
 
-// String methods for testing
-func (st SocketType) String() string {
+// socketTypeString is a test helper for socket type names
+func socketTypeString(st SocketType) string {
 	switch st {
 	case REQ:
 		return "REQ"

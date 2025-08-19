@@ -28,11 +28,14 @@ type zmqSocket struct {
 // Initialize the backend
 func initGoBackend() error {
 	// luxfi/zmq handles backend selection automatically
+	logInfo("Initializing ZMQ backend", "backend", "luxfi/zmq")
 	return nil
 }
 
 // Create a new socket using luxfi/zmq
 func newGoSocket(socketType SocketType, opts Options) (Socket, error) {
+	logDebug("Creating socket", "type", socketType.String(), "suite", opts.Suite)
+	
 	// Create context for the socket
 	ctx, cancel := context.WithCancel(context.Background())
 	
@@ -62,6 +65,8 @@ func newGoSocket(socketType SocketType, opts Options) (Socket, error) {
 		socket = zmq.NewDealer(ctx)
 	case ROUTER:
 		socket = zmq.NewRouter(ctx)
+	case STREAM:
+		socket = zmq.NewStream(ctx)
 	default:
 		cancel()
 		return nil, fmt.Errorf("unsupported socket type: %v", socketType)
@@ -90,7 +95,14 @@ func (s *zmqSocket) Bind(endpoint string) error {
 		return ErrNotConnected
 	}
 	
-	return s.socket.Listen(endpoint)
+	err := s.socket.Listen(endpoint)
+	if err != nil {
+		logError("Failed to bind socket", "endpoint", endpoint, "error", err)
+		return err
+	}
+	
+	logInfo("Socket bound", "type", s.socketType.String(), "endpoint", endpoint)
+	return nil
 }
 
 func (s *zmqSocket) Connect(endpoint string) error {
@@ -101,7 +113,14 @@ func (s *zmqSocket) Connect(endpoint string) error {
 		return ErrNotConnected
 	}
 	
-	return s.socket.Dial(endpoint)
+	err := s.socket.Dial(endpoint)
+	if err != nil {
+		logError("Failed to connect socket", "endpoint", endpoint, "error", err)
+		return err
+	}
+	
+	logInfo("Socket connected", "type", s.socketType.String(), "endpoint", endpoint)
+	return nil
 }
 
 func (s *zmqSocket) Send(data []byte) error {
@@ -125,6 +144,7 @@ func (s *zmqSocket) Send(data []byte) error {
 	s.metrics.MessagesSent++
 	s.metrics.BytesSent += uint64(len(data))
 	
+	logDebug("Message sent", "type", s.socketType.String(), "bytes", len(data))
 	return nil
 }
 

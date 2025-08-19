@@ -80,13 +80,16 @@ func TestHandshakeTimeout(t *testing.T) {
 	defer transport.Close()
 
 	req, _ := transport.NewSocket(REQ)
+	defer req.Close()  // Add proper cleanup
 	
-	// Try to connect to non-existent endpoint
+	// Try to connect to non-existent endpoint (this should return immediately)
 	err := req.Connect("tcp://127.0.0.1:19999")
-	// With stub backend this won't actually fail, but we're testing the code path
+	// With luxfi/zmq backend this won't actually fail immediately, but we're testing the code path
 	if err != nil {
 		t.Log("Connection failed as expected:", err)
 	}
+	
+	// Don't wait for anything, just return
 }
 
 // TestSocketTypes tests all socket type string representations

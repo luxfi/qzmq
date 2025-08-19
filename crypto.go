@@ -105,28 +105,34 @@ func (k *X25519KEM) Encapsulate(pk PublicKey) ([]byte, []byte, error) {
 	// Generate ephemeral key pair
 	ephemeralPrivate := make([]byte, 32)
 	if _, err := rand.Read(ephemeralPrivate); err != nil {
+		logError("Failed to generate ephemeral key", "error", err)
 		return nil, nil, err
 	}
 
 	ephemeralPublic, err := curve25519.X25519(ephemeralPrivate, curve25519.Basepoint)
 	if err != nil {
+		logError("Failed to compute ephemeral public key", "error", err)
 		return nil, nil, err
 	}
 
 	// Compute shared secret
 	sharedSecret, err := curve25519.X25519(ephemeralPrivate, pk.Bytes())
 	if err != nil {
+		logError("Failed to compute shared secret", "error", err)
 		return nil, nil, err
 	}
 
+	logDebug("KEM encapsulation complete", "algorithm", "X25519")
 	return ephemeralPublic, sharedSecret, nil
 }
 
 func (k *X25519KEM) Decapsulate(sk PrivateKey, ciphertext []byte) ([]byte, error) {
 	sharedSecret, err := curve25519.X25519(sk.Bytes(), ciphertext)
 	if err != nil {
+		logError("Failed to decapsulate", "error", err)
 		return nil, err
 	}
+	logDebug("KEM decapsulation complete", "algorithm", "X25519")
 	return sharedSecret, nil
 }
 

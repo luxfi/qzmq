@@ -2,8 +2,11 @@ package qzmq
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"fmt"
+	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -131,6 +134,8 @@ func (s *MainnetReadinessTestSuite) TestQuantumSecurity(t *testing.T) {
 
 // TestHighVolume simulates mainnet DEX load
 func (s *MainnetReadinessTestSuite) TestHighVolume(t *testing.T) {
+	// This test must pass with all backends
+	
 	const (
 		numOrders   = 100    // Orders per second target (reduced for testing)
 		numTraders  = 3      // Concurrent traders (reduced for stability)
@@ -155,29 +160,42 @@ func (s *MainnetReadinessTestSuite) TestHighVolume(t *testing.T) {
 	var ordersProcessed uint64
 	var errors uint64
 	
-	// Order processor
-	done := make(chan struct{})
+	// Order processor with proper cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	
 	go func() {
 		for {
 			select {
-			case <-done:
+			case <-ctx.Done():
 				return
 			default:
-				// Set a timeout for receive to avoid blocking forever
-				orderbook.SetOption("rcvtimeo", 100) // 100ms timeout
+				// Set a short timeout to check for cancellation regularly
+				orderbook.SetOption("rcvtimeo", 50) // 50ms timeout
 				
 				parts, err := orderbook.RecvMultipart()
 				if err != nil {
-					// Check if it's a timeout (expected when no messages)
-					if err.Error() != "timeout" && err.Error() != "resource temporarily unavailable" {
+					// Ignore timeout errors, they're expected
+					if err.Error() != "timeout" && 
+					   err.Error() != "resource temporarily unavailable" &&
+					   !strings.Contains(err.Error(), "context canceled") {
 						atomic.AddUint64(&errors, 1)
 					}
 					continue
 				}
 				
+				// Check if we should stop
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+				
 				// Echo back (simulating order confirmation)
 				if err := orderbook.SendMultipart(parts); err != nil {
-					atomic.AddUint64(&errors, 1)
+					if !strings.Contains(err.Error(), "context canceled") {
+						atomic.AddUint64(&errors, 1)
+					}
 					continue
 				}
 				
@@ -226,9 +244,9 @@ func (s *MainnetReadinessTestSuite) TestHighVolume(t *testing.T) {
 	
 	wg.Wait()
 	
-	// Stop the order processor
-	close(done)
-	time.Sleep(200 * time.Millisecond) // Give it time to exit
+	// Cancel context to stop the order processor
+	cancel()
+	time.Sleep(100 * time.Millisecond) // Give goroutine time to exit cleanly
 	
 	// Check results
 	processed := atomic.LoadUint64(&ordersProcessed)
@@ -253,6 +271,8 @@ func (s *MainnetReadinessTestSuite) TestHighVolume(t *testing.T) {
 
 // TestFailover ensures system handles failures gracefully
 func (s *MainnetReadinessTestSuite) TestFailover(t *testing.T) {
+	// This test must pass with all backends
+	
 	transport, err := New(DefaultOptions())
 	if err != nil {
 		t.Fatal(err)
@@ -325,6 +345,8 @@ func (s *MainnetReadinessTestSuite) TestFailover(t *testing.T) {
 
 // TestConcurrency ensures thread safety under high concurrency
 func (s *MainnetReadinessTestSuite) TestConcurrency(t *testing.T) {
+	// This test must pass with all backends
+	
 	const numGoroutines = 1000
 	
 	transport, err := New(DefaultOptions())
@@ -436,6 +458,8 @@ func (s *MainnetReadinessTestSuite) TestMemoryLeaks(t *testing.T) {
 
 // TestNetworkDisruption simulates network issues
 func (s *MainnetReadinessTestSuite) TestNetworkDisruption(t *testing.T) {
+	// This test must pass with all backends
+	
 	transport, err := New(DefaultOptions())
 	if err != nil {
 		t.Fatal(err)

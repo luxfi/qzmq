@@ -48,6 +48,38 @@ const (
 	STREAM                   // Stream
 )
 
+// String returns the string representation of SocketType
+func (s SocketType) String() string {
+	switch s {
+	case REQ:
+		return "REQ"
+	case REP:
+		return "REP"
+	case DEALER:
+		return "DEALER"
+	case ROUTER:
+		return "ROUTER"
+	case PUB:
+		return "PUB"
+	case SUB:
+		return "SUB"
+	case XPUB:
+		return "XPUB"
+	case XSUB:
+		return "XSUB"
+	case PUSH:
+		return "PUSH"
+	case PULL:
+		return "PULL"
+	case PAIR:
+		return "PAIR"
+	case STREAM:
+		return "STREAM"
+	default:
+		return "UNKNOWN"
+	}
+}
+
 // Transport is the main QZMQ transport interface
 type Transport interface {
 	// NewSocket creates a new QZMQ-secured socket
