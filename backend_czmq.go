@@ -8,12 +8,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/zeromq/goczmq"
+	czmq "github.com/luxfi/czmq/v4"
 )
 
 // czmqSocket implements Socket using C ZeroMQ bindings
 type czmqSocket struct {
-	socket     interface{} // Will be *goczmq.Sock
+	socket     interface{} // Will be *czmq.Sock
 	socketType SocketType
 	opts       Options
 	connection *connection
@@ -38,7 +38,7 @@ func newCZMQSocket(socketType SocketType, opts Options) (Socket, error) {
 	czmqType := convertToCZMQType(socketType)
 
 	// Create CZMQ socket
-	sock := goczmq.NewSock(czmqType)
+	sock := czmq.NewSock(czmqType)
 	if sock == nil {
 		return nil, fmt.Errorf("failed to create CZMQ socket")
 	}
@@ -55,7 +55,7 @@ func newCZMQSocket(socketType SocketType, opts Options) (Socket, error) {
 
 	// Configure socket
 	if err := cs.configure(); err != nil {
-		sock.(*goczmq.Sock).Destroy()
+		sock.(*czmq.Sock).Destroy()
 		return nil, err
 	}
 
@@ -67,7 +67,7 @@ func (s *czmqSocket) Bind(endpoint string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	sock := s.socket.(*goczmq.Sock)
+	sock := s.socket.(*czmq.Sock)
 
 	// Set server mode
 	s.connection.isServer = true
@@ -90,7 +90,7 @@ func (s *czmqSocket) Connect(endpoint string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	sock := s.socket.(*goczmq.Sock)
+	sock := s.socket.(*czmq.Sock)
 
 	// Set client mode
 	s.connection.isServer = false
@@ -116,7 +116,7 @@ func (s *czmqSocket) Send(data []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	sock := s.socket.(*goczmq.Sock)
+	sock := s.socket.(*czmq.Sock)
 
 	// Encrypt if needed
 	if s.needsEncryption() {
@@ -131,7 +131,7 @@ func (s *czmqSocket) Send(data []byte) error {
 	}
 
 	// Send via CZMQ
-	return sock.SendFrame(data, goczmq.FlagNone)
+	return sock.SendFrame(data, czmq.FlagNone)
 }
 
 // SendMultipart sends a multipart encrypted message
@@ -139,7 +139,7 @@ func (s *czmqSocket) SendMultipart(parts [][]byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	sock := s.socket.(*goczmq.Sock)
+	sock := s.socket.(*czmq.Sock)
 
 	// Encrypt each part if needed
 	if s.needsEncryption() {
@@ -154,9 +154,9 @@ func (s *czmqSocket) SendMultipart(parts [][]byte) error {
 
 	// Send multipart message
 	for i, part := range parts {
-		flag := goczmq.FlagMore
+		flag := czmq.FlagMore
 		if i == len(parts)-1 {
-			flag = goczmq.FlagNone
+			flag = czmq.FlagNone
 		}
 		if err := sock.SendFrame(part, flag); err != nil {
 			return err
@@ -168,7 +168,7 @@ func (s *czmqSocket) SendMultipart(parts [][]byte) error {
 
 // Recv receives and decrypts a message
 func (s *czmqSocket) Recv() ([]byte, error) {
-	sock := s.socket.(*goczmq.Sock)
+	sock := s.socket.(*czmq.Sock)
 
 	// Receive from CZMQ
 	data, _, err := sock.RecvFrame()
@@ -197,7 +197,7 @@ func (s *czmqSocket) Recv() ([]byte, error) {
 
 // RecvMultipart receives and decrypts a multipart message
 func (s *czmqSocket) RecvMultipart() ([][]byte, error) {
-	sock := s.socket.(*goczmq.Sock)
+	sock := s.socket.(*czmq.Sock)
 
 	var parts [][]byte
 	for {
@@ -219,7 +219,7 @@ func (s *czmqSocket) RecvMultipart() ([][]byte, error) {
 
 		parts = append(parts, data)
 
-		if flag != goczmq.FlagMore {
+		if flag != czmq.FlagMore {
 			break
 		}
 	}
@@ -233,8 +233,8 @@ func (s *czmqSocket) Subscribe(filter string) error {
 		return fmt.Errorf("subscribe only valid for SUB sockets")
 	}
 
-	sock := s.socket.(*goczmq.Sock)
-	sock.SetOption(goczmq.SockSetSubscribe(filter))
+	sock := s.socket.(*czmq.Sock)
+	sock.SetOption(czmq.SockSetSubscribe(filter))
 	return nil
 }
 
@@ -244,8 +244,8 @@ func (s *czmqSocket) Unsubscribe(filter string) error {
 		return fmt.Errorf("unsubscribe only valid for SUB sockets")
 	}
 
-	sock := s.socket.(*goczmq.Sock)
-	sock.SetOption(goczmq.SockSetUnsubscribe(filter))
+	sock := s.socket.(*czmq.Sock)
+	sock.SetOption(czmq.SockSetUnsubscribe(filter))
 	return nil
 }
 
@@ -268,7 +268,7 @@ func (s *czmqSocket) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	sock := s.socket.(*goczmq.Sock)
+	sock := s.socket.(*czmq.Sock)
 	sock.Destroy()
 
 	return nil
@@ -286,12 +286,12 @@ func (s *czmqSocket) GetMetrics() *SocketMetrics {
 // Helper methods
 
 func (s *czmqSocket) configure() error {
-	sock := s.socket.(*goczmq.Sock)
+	sock := s.socket.(*czmq.Sock)
 
 	// Set socket options
-	sock.SetOption(goczmq.SockSetSndhwm(10000))
-	sock.SetOption(goczmq.SockSetRcvhwm(10000))
-	sock.SetOption(goczmq.SockSetLinger(0))
+	sock.SetOption(czmq.SockSetSndhwm(10000))
+	sock.SetOption(czmq.SockSetRcvhwm(10000))
+	sock.SetOption(czmq.SockSetLinger(0))
 
 	return nil
 }
@@ -325,30 +325,30 @@ func (s *czmqSocket) decrypt(data []byte) ([]byte, error) {
 func convertToCZMQType(st SocketType) int {
 	switch st {
 	case REQ:
-		return goczmq.Req
+		return czmq.Req
 	case REP:
-		return goczmq.Rep
+		return czmq.Rep
 	case DEALER:
-		return goczmq.Dealer
+		return czmq.Dealer
 	case ROUTER:
-		return goczmq.Router
+		return czmq.Router
 	case PUB:
-		return goczmq.Pub
+		return czmq.Pub
 	case SUB:
-		return goczmq.Sub
+		return czmq.Sub
 	case XPUB:
-		return goczmq.XPub
+		return czmq.XPub
 	case XSUB:
-		return goczmq.XSub
+		return czmq.XSub
 	case PUSH:
-		return goczmq.Push
+		return czmq.Push
 	case PULL:
-		return goczmq.Pull
+		return czmq.Pull
 	case PAIR:
-		return goczmq.Pair
+		return czmq.Pair
 	case STREAM:
-		return goczmq.Stream
+		return czmq.Stream
 	default:
-		return goczmq.Req
+		return czmq.Req
 	}
 }

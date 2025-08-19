@@ -20,6 +20,22 @@ type AEAD interface {
 	cipher.AEAD
 }
 
+// getKEM returns the appropriate KEM implementation for the given algorithm
+func getKEM(alg KemAlgorithm) (KEM, error) {
+	switch alg {
+	case X25519:
+		return &X25519KEM{}, nil
+	case MLKEM768:
+		return &MLKEM768Type{}, nil
+	case MLKEM1024:
+		return &MLKEM1024Type{}, nil
+	case HybridX25519MLKEM768:
+		return &HybridKEM{}, nil
+	default:
+		return nil, errors.New("unsupported KEM algorithm")
+	}
+}
+
 // KEM interface for key encapsulation
 type KEM interface {
 	GenerateKeyPair() (PublicKey, PrivateKey, error)

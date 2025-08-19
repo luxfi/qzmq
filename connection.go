@@ -96,11 +96,14 @@ func (c *connection) clientHello() ([]byte, error) {
 	}
 
 	// Initialize KEM
-	c.kem = c.getKEM()
+	var err error
+	c.kem, err = c.getKEM()
+	if err != nil {
+		return nil, err
+	}
 
 	// Generate ephemeral keys if not PQ-only
 	if c.opts.Mode != ModePQOnly {
-		var err error
 		c.localKEMPK, c.localKEMSK, err = c.kem.GenerateKeyPair()
 		if err != nil {
 			return nil, err
@@ -306,21 +309,8 @@ func (c *connection) updateKeys() (*keySet, error) {
 }
 
 // getKEM returns the appropriate KEM implementation
-func (c *connection) getKEM() KEM {
-	switch c.opts.Suite.KEM {
-	case X25519:
-		return &X25519KEM{}
-	case MLKEM768:
-		return &MLKEM768Type{}
-	case MLKEM1024:
-		return &MLKEM1024Type{}
-	case HybridX25519MLKEM768:
-		return NewHybridKEM(&X25519KEM{}, &MLKEM768Type{})
-	case HybridX25519MLKEM1024:
-		return NewHybridKEM(&X25519KEM{}, &MLKEM1024Type{})
-	default:
-		return &X25519KEM{}
-	}
+func (c *connection) getKEM() (KEM, error) {
+	return getKEM(c.opts.Suite.KEM)
 }
 
 // Message types

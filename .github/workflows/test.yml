@@ -1,0 +1,127 @@
+name: Test
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        go-version: [1.21.x, 1.22.x]
+        os: [ubuntu-latest, macos-latest]
+        cgo: ["0", "1"]
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ matrix.go-version }}
+    
+    - name: Install ZeroMQ
+      run: |
+        if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
+          sudo apt-get update
+          sudo apt-get install -y libzmq3-dev
+        elif [ "${{ matrix.os }}" == "macos-latest" ]; then
+          brew install zeromq
+        fi
+    
+    - name: Install liboqs (CGO builds only)
+      if: matrix.cgo == '1'
+      run: |
+        if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
+          # Ubuntu/Debian
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+          git clone https://github.com/open-quantum-safe/liboqs.git
+          cd liboqs
+          mkdir build && cd build
+          cmake -GNinja -DCMAKE_INSTALL_PREFIX=/usr/local ..
+          ninja
+          sudo ninja install
+          sudo ldconfig
+        elif [ "${{ matrix.os }}" == "macos-latest" ]; then
+          # macOS
+          brew install cmake ninja
+          git clone https://github.com/open-quantum-safe/liboqs.git
+          cd liboqs
+          mkdir build && cd build
+          cmake -GNinja -DCMAKE_INSTALL_PREFIX=/usr/local ..
+          ninja
+          sudo ninja install
+        fi
+    
+    - name: Get dependencies
+      run: |
+        go mod download
+        go mod tidy
+    
+    - name: Test with CGO disabled
+      if: matrix.cgo == '0'
+      env:
+        CGO_ENABLED: 0
+      run: |
+        echo "Testing with CGO disabled (using stub backend)..."
+        go test -v -short -tags stub ./...
+    
+    - name: Test with CGO enabled (without liboqs)
+      if: matrix.cgo == '1' && matrix.os == 'windows-latest'
+      env:
+        CGO_ENABLED: 1
+      run: |
+        echo "Testing with CGO enabled (no liboqs)..."
+        go test -v -short ./...
+    
+    - name: Test with CGO enabled (with liboqs)
+      if: matrix.cgo == '1' && matrix.os != 'windows-latest'
+      env:
+        CGO_ENABLED: 1
+      run: |
+        echo "Testing with CGO enabled (with liboqs)..."
+        go test -v -short -tags liboqs ./...
+    
+    - name: Test crypto/kem package
+      env:
+        CGO_ENABLED: ${{ matrix.cgo }}
+      run: |
+        echo "Testing crypto/kem with CGO_ENABLED=${{ matrix.cgo }}..."
+        cd ../crypto/kem
+        go test -v ./...
+    
+    - name: Benchmark (CGO disabled)
+      if: matrix.cgo == '0'
+      env:
+        CGO_ENABLED: 0
+      run: |
+        echo "Running benchmarks with CGO disabled..."
+        go test -bench=. -benchmem ./...
+    
+    - name: Benchmark (CGO enabled)
+      if: matrix.cgo == '1' && matrix.os != 'windows-latest'
+      env:
+        CGO_ENABLED: 1
+      run: |
+        echo "Running benchmarks with CGO enabled..."
+        go test -bench=. -benchmem -tags liboqs ./...
+    
+    - name: Race Detection
+      if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.22.x'
+      env:
+        CGO_ENABLED: ${{ matrix.cgo }}
+      run: |
+        echo "Running race detector with CGO_ENABLED=${{ matrix.cgo }}..."
+        go test -race -short ./...
+    
+    - name: Coverage
+      if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.22.x' && matrix.cgo == '0'
+      env:
+        CGO_ENABLED: 0
+      run: |
+        go test -v -coverprofile=coverage.txt -covermode=atomic ./...
+        go tool cover -func=coverage.txt

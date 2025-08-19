@@ -156,6 +156,24 @@ const (
 	HybridX25519MLKEM1024
 )
 
+// String returns the string representation of KemAlgorithm
+func (k KemAlgorithm) String() string {
+	switch k {
+	case X25519:
+		return "X25519"
+	case MLKEM768:
+		return "MLKEM768"
+	case MLKEM1024:
+		return "MLKEM1024"
+	case HybridX25519MLKEM768:
+		return "HybridX25519MLKEM768"
+	case HybridX25519MLKEM1024:
+		return "HybridX25519MLKEM1024"
+	default:
+		return "Unknown"
+	}
+}
+
 // SignatureAlgorithm represents signature algorithms
 type SignatureAlgorithm int
 
@@ -165,6 +183,20 @@ const (
 	MLDSA3
 )
 
+// String returns the string representation of SignatureAlgorithm
+func (s SignatureAlgorithm) String() string {
+	switch s {
+	case Ed25519:
+		return "Ed25519"
+	case MLDSA2:
+		return "MLDSA2"
+	case MLDSA3:
+		return "MLDSA3"
+	default:
+		return "Unknown"
+	}
+}
+
 // AeadAlgorithm represents AEAD algorithms
 type AeadAlgorithm int
 
@@ -172,6 +204,18 @@ const (
 	AES256GCM AeadAlgorithm = iota
 	ChaCha20Poly1305
 )
+
+// String returns the string representation of AeadAlgorithm
+func (a AeadAlgorithm) String() string {
+	switch a {
+	case AES256GCM:
+		return "AES256GCM"
+	case ChaCha20Poly1305:
+		return "ChaCha20Poly1305"
+	default:
+		return "Unknown"
+	}
+}
 
 // HashAlgorithm represents hash algorithms
 type HashAlgorithm int
@@ -238,6 +282,11 @@ type SocketMetrics struct {
 	Errors           uint64
 	KeyUpdates       uint64
 	AverageLatency   time.Duration
+}
+
+// NewSocketMetrics creates a new SocketMetrics instance
+func NewSocketMetrics() *SocketMetrics {
+	return &SocketMetrics{}
 }
 
 // transport implements the Transport interface
@@ -353,7 +402,7 @@ func (t *transport) NewSocket(socketType SocketType) (Socket, error) {
 	case BackendGo:
 		socket, err = newGoSocket(socketType, t.opts)
 	case BackendCZMQ:
-		socket, err = newCZMQSocket(socketType, t.opts)
+		return nil, errors.New("CZMQ backend not available in this build")
 	default:
 		return nil, fmt.Errorf("unsupported backend: %v", t.backend)
 	}
@@ -437,7 +486,7 @@ func (t *transport) initBackend() error {
 	case BackendGo:
 		return initGoBackend()
 	case BackendCZMQ:
-		return initCZMQBackend()
+		return errors.New("CZMQ backend not available in this build")
 	default:
 		return fmt.Errorf("unsupported backend: %v", t.backend)
 	}
