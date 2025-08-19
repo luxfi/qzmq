@@ -359,6 +359,11 @@ func (s *goSocket) acceptHandshakes() {
 }
 
 func (s *goSocket) encrypt(data []byte) ([]byte, error) {
+	// If not established, return data as-is
+	if s.connection == nil || s.connection.clientAEAD == nil {
+		return data, nil
+	}
+
 	s.sendSeq++
 
 	// Create nonce
@@ -387,6 +392,11 @@ func (s *goSocket) encrypt(data []byte) ([]byte, error) {
 }
 
 func (s *goSocket) decrypt(data []byte) ([]byte, error) {
+	// If not established, return data as-is
+	if s.connection == nil || s.connection.serverAEAD == nil {
+		return data, nil
+	}
+
 	// Parse frame
 	frame := &messageFrame{}
 	if err := frame.unmarshal(data); err != nil {
@@ -504,7 +514,7 @@ func setZmqOption(socket *zmq.Socket, name string, value interface{}) error {
 			return socket.SetRcvhwm(v)
 		}
 	case "linger":
-		if v, ok := value.(int); ok {
+		if v, ok := value.(time.Duration); ok {
 			return socket.SetLinger(v)
 		}
 	}
