@@ -1,5 +1,5 @@
-//go:build czmq
-// +build czmq
+//go:build czmq && never
+// +build czmq,never
 
 package qzmq
 

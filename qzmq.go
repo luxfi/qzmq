@@ -549,4 +549,5 @@ var (
 	ErrNotConnected         = errors.New("not connected")
 	ErrAuthenticationFailed = errors.New("authentication failed")
 	ErrKeyRotationFailed    = errors.New("key rotation failed")
+	ErrTimeout              = errors.New("operation timed out")
 )
