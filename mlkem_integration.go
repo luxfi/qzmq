@@ -15,15 +15,15 @@ type RealMLKEM768 struct{}
 
 func (k *RealMLKEM768) GenerateKeyPair() (PublicKey, PrivateKey, error) {
 	// Generate real ML-KEM-768 key pair
-	priv, pub, err := mlkem.GenerateKeyPair(rand.Reader, mlkem.MLKEM768)
+	pub, priv, err := mlkem.GenerateKeyPair(rand.Reader, mlkem.MLKEM768)
 	if err != nil {
 		return nil, nil, err
 	}
-	
+
 	// Wrap in our interface
 	pk := &mlkemPublicKey{key: pub}
 	sk := &mlkemPrivateKey{key: priv, public: pk}
-	
+
 	return pk, sk, nil
 }
 
@@ -32,15 +32,14 @@ func (k *RealMLKEM768) Encapsulate(pk PublicKey) ([]byte, []byte, error) {
 	if !ok {
 		return nil, nil, errors.New("invalid public key type")
 	}
-	
+
 	// Perform real encapsulation
-	result, err := mpk.key.Encapsulate(rand.Reader)
+	ciphertext, sharedSecret, err := mpk.key.Encapsulate(rand.Reader)
 	if err != nil {
 		return nil, nil, err
 	}
-	
-	// Extract ciphertext and shared secret from result
-	return result.Ciphertext, result.SharedSecret, nil
+
+	return ciphertext, sharedSecret, nil
 }
 
 func (k *RealMLKEM768) Decapsulate(sk PrivateKey, ciphertext []byte) ([]byte, error) {
@@ -61,22 +60,22 @@ func (k *RealMLKEM768) Decapsulate(sk PrivateKey, ciphertext []byte) ([]byte, er
 func (k *RealMLKEM768) PublicKeySize() int    { return mlkem.MLKEM768PublicKeySize }
 func (k *RealMLKEM768) PrivateKeySize() int   { return mlkem.MLKEM768PrivateKeySize }
 func (k *RealMLKEM768) CiphertextSize() int   { return mlkem.MLKEM768CiphertextSize }
-func (k *RealMLKEM768) SharedSecretSize() int { return mlkem.MLKEM768SharedSecretSize }
+func (k *RealMLKEM768) SharedSecretSize() int { return mlkem.MLKEM768SharedKeySize }
 
 // RealMLKEM1024 implements ML-KEM-1024 using the actual FIPS 203 implementation
 type RealMLKEM1024 struct{}
 
 func (k *RealMLKEM1024) GenerateKeyPair() (PublicKey, PrivateKey, error) {
 	// Generate real ML-KEM-1024 key pair
-	priv, pub, err := mlkem.GenerateKeyPair(rand.Reader, mlkem.MLKEM1024)
+	pub, priv, err := mlkem.GenerateKeyPair(rand.Reader, mlkem.MLKEM1024)
 	if err != nil {
 		return nil, nil, err
 	}
-	
+
 	// Wrap in our interface
 	pk := &mlkemPublicKey{key: pub}
 	sk := &mlkemPrivateKey{key: priv, public: pk}
-	
+
 	return pk, sk, nil
 }
 
@@ -85,15 +84,14 @@ func (k *RealMLKEM1024) Encapsulate(pk PublicKey) ([]byte, []byte, error) {
 	if !ok {
 		return nil, nil, errors.New("invalid public key type")
 	}
-	
+
 	// Perform real encapsulation
-	result, err := mpk.key.Encapsulate(rand.Reader)
+	ciphertext, sharedSecret, err := mpk.key.Encapsulate(rand.Reader)
 	if err != nil {
 		return nil, nil, err
 	}
-	
-	// Extract ciphertext and shared secret from result
-	return result.Ciphertext, result.SharedSecret, nil
+
+	return ciphertext, sharedSecret, nil
 }
 
 func (k *RealMLKEM1024) Decapsulate(sk PrivateKey, ciphertext []byte) ([]byte, error) {
@@ -114,7 +112,7 @@ func (k *RealMLKEM1024) Decapsulate(sk PrivateKey, ciphertext []byte) ([]byte, e
 func (k *RealMLKEM1024) PublicKeySize() int    { return mlkem.MLKEM1024PublicKeySize }
 func (k *RealMLKEM1024) PrivateKeySize() int   { return mlkem.MLKEM1024PrivateKeySize }
 func (k *RealMLKEM1024) CiphertextSize() int   { return mlkem.MLKEM1024CiphertextSize }
-func (k *RealMLKEM1024) SharedSecretSize() int { return mlkem.MLKEM1024SharedSecretSize }
+func (k *RealMLKEM1024) SharedSecretSize() int { return mlkem.MLKEM1024SharedKeySize }
 
 // mlkemPublicKey wraps an ML-KEM public key
 type mlkemPublicKey struct {
