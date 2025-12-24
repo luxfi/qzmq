@@ -265,7 +265,7 @@ See \`crypto_perf.txt\` for detailed benchmarks.
 
 Based on the test results:
 
-1. **Throughput**: $([ "${throughput%.*}" -ge "$TARGET_THROUGHPUT" ] && echo "✅ Meets target" || echo "⚠️ Below target")
+1. **Throughput**: $([ "${throughput%.*}" -ge "$TARGET_THROUGHPUT" ] && echo "Meets target" || echo "Below target")
 2. **Latency**: Check P99 values for your SLA requirements
 3. **Scalability**: Review scalability curve for linear scaling
 4. **Memory**: Monitor for memory leaks under sustained load

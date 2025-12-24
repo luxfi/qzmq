@@ -7,10 +7,10 @@ QZMQ (QuantumZMQ) is a post-quantum secure transport layer for ZeroMQ that provi
 
 ## Features
 
-- 🔒 **Post-Quantum Security**: ML-KEM (Kyber) and ML-DSA (Dilithium) algorithms
-- 🚀 **High Performance**: Hardware-accelerated AES-GCM, zero-copy operations
+- **Post-Quantum Security**: ML-KEM (Kyber) and ML-DSA (Dilithium) algorithms
+- **High Performance**: Hardware-accelerated AES-GCM, zero-copy operations
 - 🔑 **Hybrid Modes**: Combine classical (X25519) and post-quantum algorithms
-- ⚡ **0-RTT Resumption**: Fast reconnection with session tickets
+- **0-RTT Resumption**: Fast reconnection with session tickets
 - 🛡️ **DoS Protection**: Stateless cookies and rate limiting
 - 🔄 **Automatic Key Rotation**: Time and volume-based key updates
 
@@ -112,11 +112,11 @@ Throughput:
 
 ## Security Properties
 
-✅ **Quantum Resistance**: Secure against attacks by quantum computers  
-✅ **Perfect Forward Secrecy**: Past sessions remain secure if keys are compromised  
-✅ **Authenticated Encryption**: All messages are encrypted and authenticated  
-✅ **Replay Protection**: Sequence numbers prevent message replay  
-✅ **Downgrade Protection**: Cryptographic binding prevents algorithm downgrade  
+**Quantum Resistance**: Secure against attacks by quantum computers  
+**Perfect Forward Secrecy**: Past sessions remain secure if keys are compromised  
+**Authenticated Encryption**: All messages are encrypted and authenticated  
+**Replay Protection**: Sequence numbers prevent message replay  
+**Downgrade Protection**: Cryptographic binding prevents algorithm downgrade  
 
 ## Architecture
 

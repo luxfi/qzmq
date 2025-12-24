@@ -101,7 +101,7 @@ main() {
         echo ""
         
         # Performance metrics
-        echo "⚡ Performance Metrics:"
+        echo "Performance Metrics:"
         avg_latency=$(query_prometheus 'histogram_quantile(0.5, sum(rate(qzmq_performance_message_latency_seconds_bucket[5m])) by (le))')
         p99_latency=$(query_prometheus 'histogram_quantile(0.99, sum(rate(qzmq_performance_message_latency_seconds_bucket[5m])) by (le))')
         handshake_time=$(query_prometheus 'histogram_quantile(0.5, sum(rate(qzmq_handshake_duration_seconds_bucket[5m])) by (le))')

@@ -85,17 +85,17 @@ git push origin v0.1.0
 # Create GitHub release
 gh release create v0.1.0 \
     --title "QZMQ v0.1.0 - Initial Release" \
-    --notes "## 🚀 Initial Release of QZMQ
+    --notes "## Initial Release of QZMQ
 
 QZMQ (QuantumZMQ) is a post-quantum secure transport layer for ZeroMQ that provides quantum-resistant encryption using NIST-standardized algorithms.
 
-### ✨ Features
+### Features
 
-- 🔒 **Post-Quantum Security**: ML-KEM (Kyber) and ML-DSA (Dilithium)
-- 🚀 **High Performance**: Hardware-accelerated AES-GCM
+- **Post-Quantum Security**: ML-KEM (Kyber) and ML-DSA (Dilithium)
+- **High Performance**: Hardware-accelerated AES-GCM
 - 🔄 **Dual Backend**: Pure Go and C bindings support
 - 🔑 **Hybrid Modes**: Classical + post-quantum algorithms
-- ⚡ **0-RTT Resumption**: Fast reconnection
+- **0-RTT Resumption**: Fast reconnection
 - 🛡️ **DoS Protection**: Anti-DoS cookies
 - 🔄 **Auto Key Rotation**: Time and volume-based
 
@@ -105,7 +105,7 @@ QZMQ (QuantumZMQ) is a post-quantum secure transport layer for ZeroMQ that provi
 go get github.com/luxfi/qzmq@v0.1.0
 \`\`\`
 
-### 🚀 Quick Start
+### Quick Start
 
 \`\`\`go
 import \"github.com/luxfi/qzmq\"
@@ -126,7 +126,7 @@ socket.Send([]byte(\"Quantum-safe reply\"))
 
 See the [README](https://github.com/luxfi/qzmq/blob/main/README.md) for complete documentation and examples.
 
-### ⚠️ Note
+### Note
 
 This is an initial release. ML-KEM and ML-DSA implementations are currently stubs pending integration with production quantum-safe libraries.
 
