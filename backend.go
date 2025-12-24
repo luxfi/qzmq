@@ -36,12 +36,10 @@ func initGoBackend() error {
 func newGoSocket(socketType SocketType, opts Options) (Socket, error) {
 	logDebug("Creating socket", "type", socketType.String(), "suite", opts.Suite)
 	
-	// Create context for the socket
 	ctx, cancel := context.WithCancel(context.Background())
 	
-	// Create the appropriate socket type using luxfi/zmq
+	// Create socket with appropriate type
 	var socket zmq.Socket
-	
 	switch socketType {
 	case REQ:
 		socket = zmq.NewReq(ctx)
