@@ -546,8 +546,6 @@ func TestKeyRotation(t *testing.T) {
 
 // TestConcurrentConnections tests multiple concurrent connections
 func TestConcurrentConnections(t *testing.T) {
-	t.Skip("ROUTER blocking issue - pure Go ZMQ Recv blocks on cleanup")
-	
 	transport, err := New(DefaultOptions())
 	if err != nil {
 		t.Fatalf("Failed to create transport: %v", err)

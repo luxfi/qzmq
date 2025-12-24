@@ -329,15 +329,17 @@ func (s *zmqSocket) GetOption(name string) (interface{}, error) {
 }
 
 func (s *zmqSocket) Close() error {
+	// Cancel context FIRST to unblock pending Recv operations before acquiring lock
+	s.cancel()
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.closed {
 		return nil
 	}
-	
+
 	s.closed = true
-	s.cancel() // Cancel context to close socket
 	return s.socket.Close()
 }
 
