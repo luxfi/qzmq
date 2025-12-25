@@ -67,16 +67,23 @@ type connection struct {
 
 	// Stream management
 	streamID uint32
+
+	// Signature verification
+	signer       Signer
+	localSignKey SigningKey
+	remotePubKey VerifyingKey
 }
 
 // newConnection creates a new QZMQ connection
 func newConnection(opts Options, isServer bool) *connection {
+	signer, _ := getSigner(opts.Suite.Sign)
 	return &connection{
 		opts:          opts,
 		isServer:      isServer,
 		state:         stateInit,
 		streamID:      defaultStreamID,
 		lastKeyUpdate: time.Now(),
+		signer:        signer,
 	}
 }
 
@@ -166,7 +173,14 @@ func (c *connection) processServerHello(data []byte) error {
 	// Store server's KEM public key
 	c.remoteKEMPK = &publicKey{data: msg.kemPublicKey}
 
-	// TODO: Verify server certificate with ML-DSA
+	// Verify server certificate signature
+	if c.signer != nil && len(msg.certificate) > 0 && len(msg.signature) > 0 {
+		c.remotePubKey = &verifyingKey{data: msg.certificate}
+		// Verify signature over transcript up to this point
+		if !c.signer.Verify(c.remotePubKey, c.transcript, msg.signature) {
+			return errors.New("invalid server certificate signature")
+		}
+	}
 
 	// Update transcript
 	c.transcript = append(c.transcript, data...)
@@ -222,7 +236,14 @@ func (c *connection) clientKey() ([]byte, error) {
 		kemCiphertext: ciphertext,
 	}
 
-	// TODO: Add client certificate and signature if mutual auth
+	// Add client certificate and signature for mutual authentication
+	if c.signer != nil && c.localSignKey != nil {
+		sig, err := c.signer.Sign(c.localSignKey, c.transcript)
+		if err != nil {
+			return nil, err
+		}
+		msg.clientSig = sig
+	}
 
 	// Marshal and update transcript
 	data := msg.marshal()

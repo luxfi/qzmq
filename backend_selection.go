@@ -212,9 +212,8 @@ func GetBackendCapabilities() BackendCapabilities {
 
 // SelectBackendForEnvironment chooses the best backend for the runtime environment
 func SelectBackendForEnvironment() BackendType {
-	// For X-Chain DEX in production
-	if os.Getenv("LUX_CHAIN") == "X" && os.Getenv("LUX_ENV") == "production" {
-		// Prefer high-performance backends
+	// For production environments, prefer high-performance backends
+	if os.Getenv("QZMQ_ENV") == "production" {
 		if err := ValidateBackendType(BackendLuxZMQ); err == nil {
 			return BackendLuxZMQ
 		}
@@ -225,12 +224,12 @@ func SelectBackendForEnvironment() BackendType {
 			return BackendPebbe
 		}
 	}
-	
+
 	// For development/testing
-	if os.Getenv("LUX_ENV") == "development" || os.Getenv("LUX_ENV") == "test" {
+	if os.Getenv("QZMQ_ENV") == "development" || os.Getenv("QZMQ_ENV") == "test" {
 		return BackendStub // Use stub for easy testing
 	}
-	
+
 	// Default selection
 	return DetectBackend()
 }
