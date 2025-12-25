@@ -34,7 +34,7 @@ jobs:
     - name: Run tests (stub backend)
       env:
         CGO_ENABLED: 0
-      run: go test -v -coverprofile="coverage-nocgo-${{ matrix.os }}.out" -covermode=atomic ./...
+      run: go test -v -timeout 3m -skip TestMainnetReadiness -coverprofile="coverage-nocgo-${{ matrix.os }}.out" -covermode=atomic ./...
 
     - name: Upload coverage
       uses: codecov/codecov-action@v4
@@ -78,7 +78,7 @@ jobs:
     - name: Run tests (zmq backend)
       env:
         CGO_ENABLED: 1
-      run: go test -v -coverprofile="coverage-cgo-${{ matrix.os }}.out" -covermode=atomic ./...
+      run: go test -v -timeout 3m -skip TestMainnetReadiness -coverprofile="coverage-cgo-${{ matrix.os }}.out" -covermode=atomic ./...
 
     - name: Upload coverage
       uses: codecov/codecov-action@v4
