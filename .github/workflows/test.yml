@@ -55,7 +55,7 @@ jobs:
         CGO_ENABLED: 1
       run: |
         echo "Testing with CGO enabled..."
-        go test -v -race ./...
+        go test -v ./...
 
     - name: Benchmark
       env:

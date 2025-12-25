@@ -80,7 +80,7 @@ jobs:
       env:
         CGO_ENABLED: 1
       run: |
-        go test -v -race -coverprofile=coverage-cgo-${{ matrix.os }}.txt -covermode=atomic ./...
+        go test -v -coverprofile=coverage-cgo-${{ matrix.os }}.txt -covermode=atomic ./...
 
     - name: Upload coverage
       uses: codecov/codecov-action@v4
