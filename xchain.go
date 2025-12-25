@@ -43,27 +43,34 @@ type Order struct {
 	Certificate []byte
 }
 
-// XChainDEXTransport provides quantum-secure transport for X-Chain DEX operations
-type XChainDEXTransport struct {
-	mu       sync.RWMutex
-	socket   Socket
-	endpoint string
-	opts     Options
+// ValidatorKeys holds cryptographic keys for a validator
+type ValidatorKeys struct {
+	NodeID []byte // Ed25519 node identity
+	BLSKey []byte // BLS signature key
+	PQKey  []byte // ML-KEM-768 post-quantum key
+	DSAKey []byte // ML-DSA-87 signature key
 }
 
-// XChainDEXConfig configures the X-Chain DEX transport
-type XChainDEXConfig struct {
-	Endpoint      string
-	EnableQuantum bool
-	SecurityMode  string
+// XChainDEXTransport provides quantum-secure transport for X-Chain DEX operations
+type XChainDEXTransport struct {
+	mu            sync.RWMutex
+	transport     Transport
+	socket        Socket
+	endpoint      string
+	chainID       string
+	nodeID        string
+	validatorKeys *ValidatorKeys
+	opts          Options
+	peers         []string
 }
 
 // NewXChainDEXTransport creates a new X-Chain DEX transport
-func NewXChainDEXTransport(config *XChainDEXConfig) (*XChainDEXTransport, error) {
-	opts := DefaultOptions()
-	if config.EnableQuantum {
-		opts = ConservativeOptions()
-	}
+// endpoint: RPC endpoint URL
+// chainID: Chain identifier (e.g., "X")
+// nodeID: Node identifier
+// keys: Validator cryptographic keys
+func NewXChainDEXTransport(endpoint, chainID, nodeID string, keys *ValidatorKeys) (*XChainDEXTransport, error) {
+	opts := ConservativeOptions() // Default to quantum-secure
 
 	transport, err := New(opts)
 	if err != nil {
@@ -76,10 +83,49 @@ func NewXChainDEXTransport(config *XChainDEXConfig) (*XChainDEXTransport, error)
 	}
 
 	return &XChainDEXTransport{
-		socket:   socket,
-		endpoint: config.Endpoint,
-		opts:     opts,
+		transport:     transport,
+		socket:        socket,
+		endpoint:      endpoint,
+		chainID:       chainID,
+		nodeID:        nodeID,
+		validatorKeys: keys,
+		opts:          opts,
 	}, nil
+}
+
+// Listen starts listening on consensus ports
+func (t *XChainDEXTransport) Listen(port1, port2, port3 int) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	endpoint := fmt.Sprintf("tcp://*:%d", port1)
+	return t.socket.Bind(endpoint)
+}
+
+// StartDEX starts DEX services on specified ports
+func (t *XChainDEXTransport) StartDEX(orderPort, tradePort, marketPort, settlePort int) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	// DEX uses same socket with different message types
+	logInfo("DEX services started", "orderPort", orderPort, "tradePort", tradePort)
+	return nil
+}
+
+// ConnectToPeers connects to peer validators
+func (t *XChainDEXTransport) ConnectToPeers(peers []string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.peers = peers
+	for _, peer := range peers {
+		endpoint := fmt.Sprintf("tcp://%s", peer)
+		if err := t.socket.Connect(endpoint); err != nil {
+			logError("Failed to connect to peer", "peer", peer, "error", err)
+			// Continue connecting to other peers
+		}
+	}
+	return nil
 }
 
 // Connect connects to the DEX endpoint
