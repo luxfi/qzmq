@@ -75,20 +75,20 @@ func TestSocketMetrics(t *testing.T) {
 func TestHandshakeTimeout(t *testing.T) {
 	opts := DefaultOptions()
 	opts.Timeouts.Handshake = 100 * time.Millisecond
-	
+
 	transport, _ := New(opts)
 	defer transport.Close()
 
 	req, _ := transport.NewSocket(REQ)
-	defer req.Close()  // Add proper cleanup
-	
+	defer req.Close() // Add proper cleanup
+
 	// Try to connect to non-existent endpoint (this should return immediately)
 	err := req.Connect("tcp://127.0.0.1:19999")
 	// With luxfi/zmq backend this won't actually fail immediately, but we're testing the code path
 	if err != nil {
 		t.Log("Connection failed as expected:", err)
 	}
-	
+
 	// Don't wait for anything, just return
 }
 
@@ -253,7 +253,7 @@ func TestPairPattern(t *testing.T) {
 	// Test bidirectional communication
 	testMsg1 := []byte("from pair1")
 	pair1.Send(testMsg1)
-	
+
 	msg, err := pair2.Recv()
 	if err != nil || string(msg) != "from pair1" {
 		t.Error("PAIR pattern failed pair1->pair2")
@@ -261,7 +261,7 @@ func TestPairPattern(t *testing.T) {
 
 	testMsg2 := []byte("from pair2")
 	pair2.Send(testMsg2)
-	
+
 	msg, err = pair1.Recv()
 	if err != nil || string(msg) != "from pair2" {
 		t.Error("PAIR pattern failed pair2->pair1")

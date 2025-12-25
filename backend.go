@@ -35,9 +35,9 @@ func initGoBackend() error {
 // Create a new socket using luxfi/zmq
 func newGoSocket(socketType SocketType, opts Options) (Socket, error) {
 	logDebug("Creating socket", "type", socketType.String(), "suite", opts.Suite)
-	
+
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	// Create socket with appropriate type
 	var socket zmq.Socket
 	switch socketType {
@@ -69,12 +69,12 @@ func newGoSocket(socketType SocketType, opts Options) (Socket, error) {
 		cancel()
 		return nil, fmt.Errorf("unsupported socket type: %v", socketType)
 	}
-	
+
 	if socket == nil {
 		cancel()
 		return nil, fmt.Errorf("failed to create socket")
 	}
-	
+
 	return &zmqSocket{
 		socket:     socket,
 		socketType: socketType,
@@ -88,17 +88,17 @@ func newGoSocket(socketType SocketType, opts Options) (Socket, error) {
 func (s *zmqSocket) Bind(endpoint string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.closed {
 		return ErrNotConnected
 	}
-	
+
 	err := s.socket.Listen(endpoint)
 	if err != nil {
 		logError("Failed to bind socket", "endpoint", endpoint, "error", err)
 		return err
 	}
-	
+
 	logInfo("Socket bound", "type", s.socketType.String(), "endpoint", endpoint)
 	return nil
 }
@@ -106,17 +106,17 @@ func (s *zmqSocket) Bind(endpoint string) error {
 func (s *zmqSocket) Connect(endpoint string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.closed {
 		return ErrNotConnected
 	}
-	
+
 	err := s.socket.Dial(endpoint)
 	if err != nil {
 		logError("Failed to connect socket", "endpoint", endpoint, "error", err)
 		return err
 	}
-	
+
 	logInfo("Socket connected", "type", s.socketType.String(), "endpoint", endpoint)
 	return nil
 }
@@ -124,24 +124,24 @@ func (s *zmqSocket) Connect(endpoint string) error {
 func (s *zmqSocket) Send(data []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.closed {
 		return ErrNotConnected
 	}
-	
+
 	// Create a message
 	msg := zmq.NewMsg(data)
-	
+
 	// Send the message
 	err := s.socket.Send(msg)
 	if err != nil {
 		return err
 	}
-	
+
 	// Update metrics
 	s.metrics.MessagesSent++
 	s.metrics.BytesSent += uint64(len(data))
-	
+
 	logDebug("Message sent", "type", s.socketType.String(), "bytes", len(data))
 	return nil
 }
@@ -149,95 +149,95 @@ func (s *zmqSocket) Send(data []byte) error {
 func (s *zmqSocket) SendMultipart(parts [][]byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.closed {
 		return ErrNotConnected
 	}
-	
+
 	// Create multi-part message
 	msg := zmq.NewMsgFrom(parts...)
-	
+
 	// Send the message
 	err := s.socket.Send(msg)
 	if err != nil {
 		return err
 	}
-	
+
 	// Update metrics
 	s.metrics.MessagesSent++
 	for _, part := range parts {
 		s.metrics.BytesSent += uint64(len(part))
 	}
-	
+
 	return nil
 }
 
 func (s *zmqSocket) Recv() ([]byte, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	if s.closed {
 		return nil, ErrNotConnected
 	}
-	
+
 	// Receive message
 	msg, err := s.socket.Recv()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Get the first frame
 	if len(msg.Frames) == 0 {
 		return []byte{}, nil
 	}
-	
+
 	data := msg.Frames[0]
-	
+
 	// Update metrics
 	s.metrics.MessagesReceived++
 	s.metrics.BytesReceived += uint64(len(data))
-	
+
 	return data, nil
 }
 
 func (s *zmqSocket) RecvMultipart() ([][]byte, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	if s.closed {
 		return nil, ErrNotConnected
 	}
-	
+
 	// Receive message
 	msg, err := s.socket.Recv()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Get all frames
 	frames := msg.Frames
-	
+
 	// Update metrics
 	s.metrics.MessagesReceived++
 	for _, frame := range frames {
 		s.metrics.BytesReceived += uint64(len(frame))
 	}
-	
+
 	return frames, nil
 }
 
 func (s *zmqSocket) Subscribe(filter string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.closed {
 		return ErrNotConnected
 	}
-	
+
 	if s.socketType != SUB && s.socketType != XSUB {
 		return fmt.Errorf("subscribe only valid for SUB/XSUB sockets")
 	}
-	
+
 	// For XSUB, send subscription as a message
 	if s.socketType == XSUB {
 		// XSUB subscription format: first byte 1 means subscribe, followed by topic
@@ -245,7 +245,7 @@ func (s *zmqSocket) Subscribe(filter string) error {
 		msg := zmq.NewMsg(subMsg)
 		return s.socket.Send(msg)
 	}
-	
+
 	// For SUB, use SetOption
 	return s.socket.SetOption(zmq.OptionSubscribe, filter)
 }
@@ -253,15 +253,15 @@ func (s *zmqSocket) Subscribe(filter string) error {
 func (s *zmqSocket) Unsubscribe(filter string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.closed {
 		return ErrNotConnected
 	}
-	
+
 	if s.socketType != SUB && s.socketType != XSUB {
 		return fmt.Errorf("unsubscribe only valid for SUB/XSUB sockets")
 	}
-	
+
 	// For XSUB, send unsubscription as a message
 	if s.socketType == XSUB {
 		// XSUB unsubscription format: first byte 0 means unsubscribe, followed by topic
@@ -269,7 +269,7 @@ func (s *zmqSocket) Unsubscribe(filter string) error {
 		msg := zmq.NewMsg(unsubMsg)
 		return s.socket.Send(msg)
 	}
-	
+
 	// For SUB, use SetOption
 	return s.socket.SetOption(zmq.OptionUnsubscribe, filter)
 }
@@ -277,11 +277,11 @@ func (s *zmqSocket) Unsubscribe(filter string) error {
 func (s *zmqSocket) SetOption(name string, value interface{}) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.closed {
 		return ErrNotConnected
 	}
-	
+
 	// Map common options to ZMQ options
 	switch name {
 	case "sndhwm", "rcvhwm":
@@ -298,18 +298,18 @@ func (s *zmqSocket) SetOption(name string, value interface{}) error {
 		// Timeout options - ignore for now as luxfi/zmq handles timeouts differently
 		return nil
 	}
-	
+
 	return fmt.Errorf("unsupported option: %s", name)
 }
 
 func (s *zmqSocket) GetOption(name string) (interface{}, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	if s.closed {
 		return nil, ErrNotConnected
 	}
-	
+
 	switch name {
 	case "type":
 		return s.socketType, nil
@@ -346,7 +346,7 @@ func (s *zmqSocket) Close() error {
 func (s *zmqSocket) GetMetrics() *SocketMetrics {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	// Return a copy to avoid race conditions
 	metrics := *s.metrics
 	return &metrics

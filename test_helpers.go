@@ -19,7 +19,7 @@ func NewTestContext(t *testing.T, opts Options) *TestContext {
 	if err != nil {
 		t.Fatalf("Failed to create transport: %v", err)
 	}
-	
+
 	return &TestContext{
 		t:         t,
 		transport: transport,
@@ -61,12 +61,12 @@ func (tc *TestContext) ConnectSocket(socketType SocketType, port int) Socket {
 func (tc *TestContext) CreatePair(serverType, clientType SocketType, port int) (Socket, Socket) {
 	server := tc.BindSocket(serverType, port)
 	client := tc.ConnectSocket(clientType, port)
-	
+
 	// Special handling for SUB sockets
 	if clientType == SUB {
 		client.Subscribe("")
 	}
-	
+
 	time.Sleep(100 * time.Millisecond) // Allow connection
 	return server, client
 }
@@ -84,12 +84,12 @@ func (tc *TestContext) SendRecv(sender, receiver Socket, msg []byte) {
 	if err := sender.Send(msg); err != nil {
 		tc.t.Fatalf("Send failed: %v", err)
 	}
-	
+
 	received, err := receiver.Recv()
 	if err != nil {
 		tc.t.Fatalf("Recv failed: %v", err)
 	}
-	
+
 	if string(received) != string(msg) {
 		tc.t.Errorf("Message mismatch: got %s, want %s", received, msg)
 	}
@@ -146,9 +146,9 @@ func (tc *TestContext) AssertMetrics(socket Socket, minMessages, minBytes int) {
 func TestPattern(t *testing.T, serverType, clientType SocketType, port int) {
 	tc := NewTestContext(t, DefaultOptions())
 	defer tc.Cleanup()
-	
+
 	server, client := tc.CreatePair(serverType, clientType, port)
-	
+
 	// Test message exchange based on pattern
 	switch serverType {
 	case REP:
@@ -156,7 +156,7 @@ func TestPattern(t *testing.T, serverType, clientType SocketType, port int) {
 		tc.EchoServer(server, done)
 		tc.SendRecv(client, client, []byte("test"))
 		close(done)
-		
+
 	case PUB:
 		time.Sleep(100 * time.Millisecond) // Allow subscription
 		if err := server.Send([]byte("broadcast")); err != nil {
@@ -169,7 +169,7 @@ func TestPattern(t *testing.T, serverType, clientType SocketType, port int) {
 		if string(msg) != "broadcast" {
 			t.Errorf("Wrong message: got %s, want broadcast", msg)
 		}
-		
+
 	case PULL:
 		if err := client.Send([]byte("work")); err != nil {
 			t.Fatalf("PUSH send failed: %v", err)
@@ -181,13 +181,13 @@ func TestPattern(t *testing.T, serverType, clientType SocketType, port int) {
 		if string(msg) != "work" {
 			t.Errorf("Wrong message: got %s, want work", msg)
 		}
-		
+
 	case ROUTER:
 		done := make(chan struct{})
 		tc.RouterEchoServer(server, done)
 		tc.SendRecv(client, client, []byte("async"))
 		close(done)
-		
+
 	case PAIR:
 		tc.SendRecv(client, server, []byte("peer1"))
 		tc.SendRecv(server, client, []byte("peer2"))

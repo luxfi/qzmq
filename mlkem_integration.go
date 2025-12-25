@@ -6,7 +6,7 @@ package qzmq
 import (
 	"crypto/rand"
 	"errors"
-	
+
 	"github.com/luxfi/crypto/mlkem"
 )
 
@@ -47,13 +47,13 @@ func (k *RealMLKEM768) Decapsulate(sk PrivateKey, ciphertext []byte) ([]byte, er
 	if !ok {
 		return nil, errors.New("invalid private key type")
 	}
-	
+
 	// Perform real decapsulation
 	sharedSecret, err := msk.key.Decapsulate(ciphertext)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return sharedSecret, nil
 }
 
@@ -99,13 +99,13 @@ func (k *RealMLKEM1024) Decapsulate(sk PrivateKey, ciphertext []byte) ([]byte, e
 	if !ok {
 		return nil, errors.New("invalid private key type")
 	}
-	
+
 	// Perform real decapsulation
 	sharedSecret, err := msk.key.Decapsulate(ciphertext)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return sharedSecret, nil
 }
 
@@ -156,24 +156,24 @@ func (h *HybridMLKEM) GenerateKeyPair() (PublicKey, PrivateKey, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	
+
 	pqPub, pqPriv, err := h.pq.GenerateKeyPair()
 	if err != nil {
 		return nil, nil, err
 	}
-	
+
 	// Combine keys
 	pk := &hybridPublicKey{
 		classical: classicalPub,
 		pq:        pqPub,
 	}
-	
+
 	sk := &hybridPrivateKey{
 		classical: classicalPriv,
 		pq:        pqPriv,
 		public:    pk,
 	}
-	
+
 	return pk, sk, nil
 }
 
@@ -182,27 +182,27 @@ func (h *HybridMLKEM) Encapsulate(pk PublicKey) ([]byte, []byte, error) {
 	if !ok {
 		return nil, nil, errors.New("invalid public key type")
 	}
-	
+
 	// Encapsulate with both algorithms
 	classicalCt, classicalSS, err := h.classical.Encapsulate(hpk.classical)
 	if err != nil {
 		return nil, nil, err
 	}
-	
+
 	pqCt, pqSS, err := h.pq.Encapsulate(hpk.pq)
 	if err != nil {
 		return nil, nil, err
 	}
-	
+
 	// Combine ciphertexts and shared secrets
 	ciphertext := append(classicalCt, pqCt...)
-	
+
 	// XOR the shared secrets for hybrid security
 	sharedSecret := make([]byte, 32)
 	for i := 0; i < 32; i++ {
 		sharedSecret[i] = classicalSS[i] ^ pqSS[i]
 	}
-	
+
 	return ciphertext, sharedSecret, nil
 }
 
@@ -211,33 +211,33 @@ func (h *HybridMLKEM) Decapsulate(sk PrivateKey, ciphertext []byte) ([]byte, err
 	if !ok {
 		return nil, errors.New("invalid private key type")
 	}
-	
+
 	// Split ciphertext
 	classicalCtSize := h.classical.CiphertextSize()
 	if len(ciphertext) < classicalCtSize {
 		return nil, errors.New("ciphertext too short")
 	}
-	
+
 	classicalCt := ciphertext[:classicalCtSize]
 	pqCt := ciphertext[classicalCtSize:]
-	
+
 	// Decapsulate with both algorithms
 	classicalSS, err := h.classical.Decapsulate(hsk.classical, classicalCt)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	pqSS, err := h.pq.Decapsulate(hsk.pq, pqCt)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// XOR the shared secrets
 	sharedSecret := make([]byte, 32)
 	for i := 0; i < 32; i++ {
 		sharedSecret[i] = classicalSS[i] ^ pqSS[i]
 	}
-	
+
 	return sharedSecret, nil
 }
 

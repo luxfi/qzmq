@@ -52,7 +52,7 @@ func formatFields(args []interface{}) string {
 	if len(args) == 0 {
 		return ""
 	}
-	
+
 	var result string
 	for i := 0; i < len(args)-1; i += 2 {
 		if i > 0 {

@@ -45,7 +45,7 @@ func TestMessageExchange(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer pull.Close()
-	
+
 	push, err := transport.NewSocket(PUSH)
 	if err != nil {
 		t.Fatal(err)
@@ -54,20 +54,20 @@ func TestMessageExchange(t *testing.T) {
 
 	pull.Bind("tcp://127.0.0.1:34567")
 	push.Connect("tcp://127.0.0.1:34567")
-	
+
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// Send and receive
 	msg := []byte("test message")
 	if err := push.Send(msg); err != nil {
 		t.Fatalf("Failed to send: %v", err)
 	}
-	
+
 	received, err := pull.Recv()
 	if err != nil {
 		t.Fatalf("Failed to receive: %v", err)
 	}
-	
+
 	if string(received) != string(msg) {
 		t.Errorf("Message mismatch: got %s, want %s", received, msg)
 	}

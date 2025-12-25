@@ -41,7 +41,7 @@ type signingKey struct {
 	public VerifyingKey
 }
 
-func (sk *signingKey) Bytes() []byte       { return sk.data }
+func (sk *signingKey) Bytes() []byte        { return sk.data }
 func (sk *signingKey) Public() VerifyingKey { return sk.public }
 
 type verifyingKey struct {
@@ -86,8 +86,8 @@ func (s *Ed25519Signer) Verify(pk VerifyingKey, message, signature []byte) bool 
 	return ed25519.Verify(pub, message, signature)
 }
 
-func (s *Ed25519Signer) PublicKeySize() int  { return ed25519.PublicKeySize }
-func (s *Ed25519Signer) SignatureSize() int  { return ed25519.SignatureSize }
+func (s *Ed25519Signer) PublicKeySize() int { return ed25519.PublicKeySize }
+func (s *Ed25519Signer) SignatureSize() int { return ed25519.SignatureSize }
 
 // MLDSASigner implements ML-DSA (Dilithium) signatures
 type MLDSASigner struct {
