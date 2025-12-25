@@ -248,6 +248,17 @@ jobs:
           echo "HAS_MLX=0" >> $GITHUB_ENV
         fi
 
+    - name: Install ZeroMQ (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libzmq3-dev libczmq-dev pkg-config
+
+    - name: Install ZeroMQ (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install zeromq czmq pkg-config
+
     - name: Run hardware-accelerated tests
       run: |
         echo "Hardware acceleration environment:"
