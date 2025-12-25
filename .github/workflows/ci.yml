@@ -34,13 +34,12 @@ jobs:
     - name: Run tests (stub backend)
       env:
         CGO_ENABLED: 0
-      run: |
-        go test -v -coverprofile=coverage-nocgo-${{ matrix.os }}.txt -covermode=atomic ./...
+      run: go test -v -coverprofile="coverage-nocgo-${{ matrix.os }}.out" -covermode=atomic ./...
 
     - name: Upload coverage
       uses: codecov/codecov-action@v4
       with:
-        file: ./coverage-nocgo-${{ matrix.os }}.txt
+        file: ./coverage-nocgo-${{ matrix.os }}.out
         flags: unittests,nocgo,${{ matrix.os }}
         fail_ci_if_error: false
 
@@ -64,8 +63,8 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        sudo apt-get install -y libzmq3-dev pkg-config
-        
+        sudo apt-get install -y libzmq3-dev libczmq-dev pkg-config
+
     - name: Install ZeroMQ (macOS)
       if: matrix.os == 'macos-latest'
       run: |
@@ -79,13 +78,12 @@ jobs:
     - name: Run tests (zmq backend)
       env:
         CGO_ENABLED: 1
-      run: |
-        go test -v -coverprofile=coverage-cgo-${{ matrix.os }}.txt -covermode=atomic ./...
+      run: go test -v -coverprofile="coverage-cgo-${{ matrix.os }}.out" -covermode=atomic ./...
 
     - name: Upload coverage
       uses: codecov/codecov-action@v4
       with:
-        file: ./coverage-cgo-${{ matrix.os }}.txt
+        file: ./coverage-cgo-${{ matrix.os }}.out
         flags: unittests,cgo,${{ matrix.os }}
         fail_ci_if_error: false
 
