@@ -1,6 +1,6 @@
 module github.com/luxfi/qzmq
 
-go 1.26
+go 1.26.1
 
 require (
 	github.com/luxfi/crypto v1.17.39
